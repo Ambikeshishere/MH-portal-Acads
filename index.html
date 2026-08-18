@@ -138,16 +138,21 @@
         <p class="login-subtitle">Fill details — ID will be created after approval</p>
         <form id="signupForm" onsubmit="handleSignup(event)">
           <div class="input-group">
-            <label>Email ID</label>
+            <label>MAIL ID</label>
             <input type="email" id="signupEmail" placeholder="Enter your PW email" required>
           </div>
           <div class="input-group">
-            <label>Center (select multiple)</label>
-            <div class="checkbox-grid" id="signupCenters"></div>
-            <div class="signup-hint">Select one or more centers</div>
+            <label>PWID</label>
+            <input type="text" id="signupPwid" placeholder="Enter your PW ID" required>
           </div>
           <div class="input-group">
-            <label>Role</label>
+            <label>CENTER</label>
+            <select id="signupCenter">
+              <option value="">Select center...</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>ROLE</label>
             <select id="signupRole" onchange="updateRoleHint()">
               <option value="">Select role...</option>
             </select>

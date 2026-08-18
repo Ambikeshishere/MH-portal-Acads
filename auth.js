@@ -109,11 +109,11 @@ async function loadSignupOptions() {
   try {
     const resp = await apiGet('getSignupOptions');
     if (resp.success) {
-      // Populate centers checkboxes
-      const centersBox = document.getElementById('signupCenters');
-      centersBox.innerHTML = resp.data.centers.map(c =>
-        '<label><input type="checkbox" value="' + esc(c) + '"> ' + esc(c) + '</label>'
-      ).join('') || '<div class="signup-hint">No centers available</div>';
+      // Populate centers dropdown (single select)
+      const centerSel = document.getElementById('signupCenter');
+      centerSel.innerHTML = '<option value="">Select center...</option>' +
+        resp.data.centers.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('') ||
+        '<option value="">No centers available</option>';
 
       // Populate roles
       const roleSel = document.getElementById('signupRole');
@@ -141,13 +141,14 @@ async function handleSignup(e) {
   hideAlert('signupError'); hideAlert('signupSuccess');
   const btn = document.getElementById('signupBtn');
   const email = document.getElementById('signupEmail').value.trim();
-  const password = document.getElementById('signupPassword').value.trim();
+  const pwid = document.getElementById('signupPwid').value.trim();
+  const center = document.getElementById('signupCenter').value;
   const role = document.getElementById('signupRole').value;
+  const password = document.getElementById('signupPassword').value.trim();
 
-  const centers = Array.from(document.querySelectorAll('#signupCenters input:checked'))
-    .map(c => c.value);
-  if (!email) { showError('signupError', 'Email required'); return; }
-  if (centers.length === 0) { showError('signupError', 'Select at least one center'); return; }
+  if (!email) { showError('signupError', 'MAIL ID required'); return; }
+  if (!pwid) { showError('signupError', 'PWID required'); return; }
+  if (!center) { showError('signupError', 'Select a center'); return; }
   if (!role) { showError('signupError', 'Select a role'); return; }
   if (password.length < 4) { showError('signupError', 'Password must be at least 4 characters'); return; }
 
@@ -155,12 +156,12 @@ async function handleSignup(e) {
   btn.querySelector('span').textContent = 'Submitting...';
 
   try {
-    const resp = await apiGet('signup', { email, centers: centers.join(', '), role, password });
+    const resp = await apiGet('signup', { email, pwid, center, role, password });
     if (resp.success) {
       document.getElementById('signupSuccess').textContent = resp.message;
       document.getElementById('signupSuccess').classList.add('show');
       document.getElementById('signupForm').reset();
-      document.getElementById('signupCenters').innerHTML = '';
+      document.getElementById('signupCenter').innerHTML = '<option value="">Select center...</option>';
       document.getElementById('signupRole').innerHTML = '<option value="">Select role...</option>';
     } else {
       showError('signupError', resp.message);

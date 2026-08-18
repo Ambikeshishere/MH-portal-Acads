@@ -192,23 +192,24 @@ function handleGetSignupOptions() {
 
 function handleSignup(e) {
   const email = String((e.parameter && e.parameter.email) || (e.email) || '').trim().toLowerCase();
+  const pwid = String((e.parameter && e.parameter.pwid) || (e.pwid) || '').trim();
   const password = String((e.parameter && e.parameter.password) || (e.password) || '').trim();
-  const centersRaw = String((e.parameter && e.parameter.centers) || (e.centers) || '').trim();
+  const center = String((e.parameter && e.parameter.center) || (e.center) || '').trim();
   const role = String((e.parameter && e.parameter.role) || (e.role) || '').trim();
 
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     return json({ success: false, message: 'Valid email required' });
+  if (!pwid)
+    return json({ success: false, message: 'PWID required' });
   if (!password || password.length < 4)
     return json({ success: false, message: 'Password must be at least 4 characters' });
   if (!role || !SIGNUP_ROLES.includes(role))
     return json({ success: false, message: 'Invalid role selected' });
-  if (!centersRaw)
-    return json({ success: false, message: 'At least one center required' });
+  if (!center)
+    return json({ success: false, message: 'Center required' });
 
-  // Normalize centers: comma/`/` separated
-  const centers = centersRaw.split(/[,|]/).map(s => s.trim()).filter(Boolean);
-  if (centers.length === 0)
-    return json({ success: false, message: 'At least one center required' });
+  // Single center (dropdown selection)
+  const centers = [center];
 
   // Duplicate checks
   if (findUser(email))
@@ -236,13 +237,13 @@ function handleSignup(e) {
   let apSheet = ss.getSheetByName('Approvals');
   if (!apSheet) {
     apSheet = ss.insertSheet('Approvals');
-    apSheet.appendRow(['Request ID', 'Email', 'Centers', 'Role', 'Password',
+    apSheet.appendRow(['Request ID', 'Email', 'PWID', 'Center', 'Role', 'Password',
                        'Status', 'Approver Email', 'Created At', 'Processed At', 'Token']);
   }
   const requestId = 'REQ-' + Utilities.getUuid().substring(0, 6).toUpperCase();
   const token = Utilities.getUuid().replace(/-/g, '').substring(0, 12).toUpperCase();
   const now = new Date();
-  apSheet.appendRow([requestId, email, centers.join(', '), role, password,
+  apSheet.appendRow([requestId, email, pwid, center, role, password,
                      'Pending', approverEmail, now, '', token]);
 
   // Send email to approver with approve/reject links + reply instructions
@@ -255,7 +256,8 @@ function handleSignup(e) {
     'A new ' + role + ' account request is waiting for your approval.\n\n' +
     'Request ID: ' + requestId + '\n' +
     'Name/Email: ' + email + '\n' +
-    'Centers: ' + centers.join(', ') + '\n' +
+    'PWID: ' + pwid + '\n' +
+    'Center: ' + center + '\n' +
     'Role: ' + role + '\n\n' +
     'APPROVE: Reply to this email with "approve" or click:\n' + approveUrl + '\n\n' +
     'REJECT: Reply with "reject" or click:\n' + rejectUrl + '\n\n' +
@@ -280,10 +282,10 @@ function findRequestByToken(token) {
   const data = sheet.getDataRange().getValues();
   const q = String(token || '').trim().toUpperCase();
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][9]).trim().toUpperCase() === q) {
+    if (String(data[i][10]).trim().toUpperCase() === q) {
       return { sheet, data, index: i, requestId: String(data[i][0]), email: String(data[i][1]),
-               centers: String(data[i][2]), role: String(data[i][3]), password: String(data[i][4]),
-               status: String(data[i][5]) };
+               pwid: String(data[i][2]), center: String(data[i][3]), role: String(data[i][4]),
+               password: String(data[i][5]), status: String(data[i][6]) };
     }
   }
   return null;
@@ -299,8 +301,8 @@ function handleRejectRequest(e) {
   const token = e.parameter.token;
   const req = findRequestByToken(token);
   if (!req) return json({ success: false, message: 'Invalid token' });
-  req.sheet.getRange(req.index + 1, 6).setValue('Rejected');
-  req.sheet.getRange(req.index + 1, 9).setValue(new Date());
+  req.sheet.getRange(req.index + 1, 7).setValue('Rejected');
+  req.sheet.getRange(req.index + 1, 10).setValue(new Date());
   try {
     MailApp.sendEmail({ to: req.email,
       subject: 'PW Portal — Signup Request Rejected',
@@ -320,9 +322,9 @@ function processApproval(token, newStatus, userMessage) {
     // Create user in ID-Role sheet
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const idRole = ss.getSheetByName('ID-Role');
-    idRole.appendRow([req.email, req.centers, req.role, '', '', '', '', req.password || DEFAULT_PASSWORD, '', '', '']);
-    req.sheet.getRange(req.index + 1, 6).setValue('Approved');
-    req.sheet.getRange(req.index + 1, 9).setValue(new Date());
+    idRole.appendRow([req.email, req.center, req.role, '', '', '', '', req.password || DEFAULT_PASSWORD, '', '', '']);
+    req.sheet.getRange(req.index + 1, 7).setValue('Approved');
+    req.sheet.getRange(req.index + 1, 10).setValue(new Date());
     try {
       MailApp.sendEmail({ to: req.email,
         subject: 'PW Portal — Account Approved',
@@ -358,8 +360,8 @@ function checkApprovalReplies() {
       } else if (reply.includes('reject') && reply.includes(token.toLowerCase())) {
         const req = findRequestByToken(token);
         if (req && req.status === 'Pending') {
-          req.sheet.getRange(req.index + 1, 6).setValue('Rejected');
-          req.sheet.getRange(req.index + 1, 9).setValue(new Date());
+          req.sheet.getRange(req.index + 1, 7).setValue('Rejected');
+          req.sheet.getRange(req.index + 1, 10).setValue(new Date());
           MailApp.sendEmail({ to: req.email, subject: 'PW Portal — Signup Request Rejected',
             body: 'Your signup request (' + req.requestId + ') was rejected.' });
           processed++;
@@ -383,9 +385,9 @@ function handleGetApprovalStatus(e) {
   const requests = [];
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][1]).trim().toLowerCase() === email) {
-      requests.push({ requestId: String(data[i][0]), centers: String(data[i][2]),
-                      role: String(data[i][3]), status: String(data[i][5]),
-                      approver: String(data[i][6]), createdAt: String(data[i][7]) });
+      requests.push({ requestId: String(data[i][0]), center: String(data[i][3]),
+                      role: String(data[i][4]), status: String(data[i][6]),
+                      approver: String(data[i][7]), createdAt: String(data[i][8]) });
     }
   }
   return json({ success: true, data: { requests: requests } });
