@@ -167,7 +167,8 @@ The portal implements a 7-level hierarchy:
 | A | MAIL ID | Faculty email address (login identifier) |
 | B | CENTER | Center code/name |
 | C | ROLE | Admin, RAH, RAOM, CH/ACH, AOM, Subject Head, Faculty |
-| D-G | — | Other fields (unused by portal) |
+| D | PWID | PW ID (filled on signup approval) |
+| E-G | — | Other fields (unused by portal) |
 | H | Password | User password (blank = use default `Acer@1234`) |
 | I-J | — | Other fields (unused) |
 | K | OTP | Stores generated OTP during password reset |
@@ -262,6 +263,8 @@ The portal implements a 7-level hierarchy:
 2. Open `http://localhost:8888` in any modern browser
 3. Login with your email and password (default: `Acer@1234`)
 
+> **Tip:** If you don't want to run a server, open **`index-standalone.html`** directly — it has all HTML and JS inline and works from `file://` or any host.
+
 ---
 
 ## API Endpoints
@@ -283,8 +286,8 @@ All endpoints use `GET` requests except password reset (uses `POST`).
 | `getSignupOptions` | GET | — | Available roles and centers for signup |
 | `signup` | GET | `email`, `pwid`, `center`, `role`, `password` | Create an approval request |
 | `getApprovalStatus` | GET | `email` | Check status of a user's approval requests |
-| `approveRequest` | GET | `token` | Approve a signup request (from email link) |
-| `rejectRequest` | GET | `token` | Reject a signup request (from email link) |
+| `approveRequest` | GET | `token` | Approve a signup request (from email button) — returns minimal HTML page |
+| `rejectRequest` | GET | `token` | Reject a signup request (from email button) — returns minimal HTML page |
 
 ---
 
@@ -293,7 +296,7 @@ All endpoints use `GET` requests except password reset (uses `POST`).
 New users sign up through the portal, but their account is **only created after an approver approves** the request.
 
 ### Signup form fields
-- **MAIL ID** — PW email address (login identifier)
+- **MAIL ID** — PW email address (login identifier). **Only `@pw.live` emails can sign up.**
 - **PWID** — PW ID
 - **CENTER** — single center selected from a dropdown
 - **ROLE** — Faculty, Subject Head, AOM, CH/ACH, RAOM, RAH
@@ -359,7 +362,8 @@ MH portal Acads/
 ├── screen-signup.html    # Signup screen partial (MAIL ID, PWID, CENTER, ROLE)
 ├── screen-app.html       # Main app screen (top navbar + all views)
 ├── overlay.html          # Loading overlay partial
-├── styles.css            # CSS styling with PW theme
+├── index-standalone.html # Single-file build (all HTML+JS inline, no server needed)
+├── styles.css            # CSS styling with black + red premium theme
 └── README.md             # This file
 ```
 
@@ -378,33 +382,35 @@ MH portal Acads/
 | `students.js` | Student list, filters, rendering, student detail |
 | `perf.js` | Shared performance list renderers (toppers, average, bottom, absentees) |
 | `screen-*.html` | One screen per file, injected by `loader.js` |
-| `styles.css` | PW theme, responsive layout, animations |
+| `index-standalone.html` | Single-file build with all HTML + JS inline — works from `file://` or any host |
+| `styles.css` | Black + red premium theme, responsive layout, animations |
 
-> **Note:** The frontend must be served over HTTP (e.g. `python3 -m http.server 8888` or GitHub Pages) because `loader.js` uses `fetch()` to load the HTML partials. Opening `index.html` directly via `file://` will not load the partials.
+> **Note:** The modular frontend (`index.html`) must be served over HTTP (e.g. `python3 -m http.server 8888` or GitHub Pages) because `loader.js` uses `fetch()` to load the HTML partials. If you only want a single file that works anywhere, use **`index-standalone.html`** instead.
 
 ---
 
 ## Branding & Theme
 
-The portal follows the **Physics Wallah** brand identity:
+The portal uses a **black + red premium** theme:
 
 | Element | Value |
 |---------|-------|
-| Primary Purple | `#5A4BDA` |
-| Dark Background | `#1B2124` |
-| Light Purple | `#F1EFFF` |
-| Success Green | `#10B981` |
-| Warning Amber | `#F59E0B` |
-| Danger Red | `#EF4444` |
-| Body Background | `#F5F5F7` |
+| Brand Red | `#EF4444` |
+| Red Dark | `#B91C1C` |
+| Red Bright | `#F87171` |
+| Deep Black (bg) | `#0A0A0B` |
+| Card Surface | `#151518` |
+| Border | `#26262B` |
+| Text | `#F5F5F7` |
+| Text Secondary | `#A1A1AA` |
 | Typography | Inter (Google Fonts) |
 
 The design features:
-- **Split-screen login** with PW purple gradient on the left
-- **Dark sidebar** with PW logo and navigation
-- **Color-coded stat cards** on the dashboard
-- **Performance cards** with color-coded sections (green for toppers, red for absent)
-- **Subject-specific color tags** (blue for Physics, green for Chemistry, etc.)
+- **Split-screen login** with black background + red radial gradients on the left
+- **Red gradient buttons** (`#EF4444 → #B91C1C`) with glow shadows
+- **Dark top navbar** with red active states
+- **Dark cards and tables** with subtle red accents
+- **Red glow effects** on logo, avatar, and loading spinner
 - **Responsive design** that works on mobile, tablet, and desktop
 
 ---
