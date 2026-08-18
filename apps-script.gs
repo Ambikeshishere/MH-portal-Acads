@@ -643,8 +643,8 @@ function handleGetDashboard(e) {
   });
   let totalPct = 0, cnt = 0;
   Object.values(stuLatest).forEach(r => {
-    const p = parseFloat(r[13]);
-    if (!isNaN(p) && p > 0) { totalPct += p; cnt++; }
+    const p = (parseFloat(r[13]) || 0) * 100; // markspercent stored as fraction
+    if (p > 0) { totalPct += p; cnt++; }
   });
 
   return json({ success: true, data: {
@@ -710,8 +710,8 @@ function handleGetBatches(e) {
   const batchScores = {};
   rows(tests).forEach(r => {
     const reg = col(r, 0);
-    const pct = parseFloat(r[13]);
-    if (isNaN(pct) || pct <= 0) return;
+    const pct = (parseFloat(r[13]) || 0) * 100; // markspercent stored as fraction
+    if (pct <= 0) return;
     for (const b in batchRegnos) {
       if (batchRegnos[b].has(reg)) {
         if (!batchScores[b]) batchScores[b] = { total: 0, count: 0 };
@@ -770,7 +770,7 @@ function handleGetBatchDetail(e) {
       testType: String(latest[6] || '').trim(),
       status: 'Present',
       score: latest[scoreCol] || 0,
-      percentage: parseFloat(latest[13]) || 0,
+      percentage: (parseFloat(latest[13]) || 0) * 100,
       totalScore: parseFloat(latest[12]) || 0,
       rank: latest[19] || null,
       tests: results.length,
@@ -855,8 +855,8 @@ function handleGetFaculty(e) {
   const stuScores = {};
   rows(tests).forEach(r => {
     const reg = col(r, 0);
-    const pct = parseFloat(r[13]);
-    if (!isNaN(pct) && pct > 0) {
+    const pct = (parseFloat(r[13]) || 0) * 100; // markspercent stored as fraction
+    if (pct > 0) {
       if (!stuScores[reg]) stuScores[reg] = { total: 0, count: 0 };
       stuScores[reg].total += pct;
       stuScores[reg].count++;
@@ -934,7 +934,7 @@ function handleGetStudents(e) {
     }
     const latest = results[results.length - 1];
     let totalPct = 0, cnt = 0;
-    results.forEach(r => { const p = parseFloat(r[13]); if (!isNaN(p) && p > 0) { totalPct += p; cnt++; } });
+    results.forEach(r => { const p = (parseFloat(r[13]) || 0) * 100; if (p > 0) { totalPct += p; cnt++; } });
 
     const subjs = ['Physics','Chemistry','Maths','Zoology','Botany'];
     const best = [14,15,16,17,18].map((c, i) => ({ name: subjs[i], score: parseFloat(latest[c]) || 0 }))
@@ -974,7 +974,7 @@ function handleGetStudentDetail(e) {
     testDate: String(r[10] || '').trim(),
     totalMarks: parseFloat(r[11]) || 0,
     score: parseFloat(r[12]) || 0,
-    percentage: parseFloat(r[13]) || 0,
+    percentage: (parseFloat(r[13]) || 0) * 100,
     physics: r[14] !== '' && r[14] != null ? parseFloat(r[14]) : null,
     chemistry: r[15] !== '' && r[15] != null ? parseFloat(r[15]) : null,
     maths: r[16] !== '' && r[16] != null ? parseFloat(r[16]) : null,
