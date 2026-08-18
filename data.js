@@ -142,6 +142,14 @@ function facultySubjects(email) {
   return [...subs];
 }
 
+// Subjects a student studies, based on their stream.
+// NEET → no Maths; JEE & Foundation → no Zoology/Botany.
+function streamSubjects(stream) {
+  const s = String(stream || '');
+  if (s.includes('NEET')) return ['physics', 'chemistry', 'zoology', 'botany'];
+  return ['physics', 'chemistry', 'maths'];
+}
+
 // ── HOME COMPUTATION ─────────────────────────────────
 // filters: { centers:[], stream:'', batch:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
@@ -265,6 +273,42 @@ function computeHome(filters) {
   const totalStudents = filters.batch
     ? studentList.filter(s => s.batch === filters.batch).length
     : accStudents.size;
+  const avgScore = scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0;
+
+  // 9) Average students — within ±5% of the overall average score
+  const avgLo = avgScore - 5, avgHi = avgScore + 5;
+  const avgStudents = studentList.filter(s => s.avg >= avgLo && s.avg <= avgHi).length;
+
+  // 10) Absent students — their batch had a test but they didn't give it.
+  //     Pending = number of batch tests the student missed.
+  const batchTestDates = {};
+  const studentTestDates = {};
+  const studentInfo = {};
+  for (const t of DATA.tests) {
+    const b = t.current_batch;
+    if (b) { if (!batchTestDates[b]) batchTestDates[b] = new Set(); batchTestDates[b].add(t._date); }
+    if (t.reg_no) {
+      if (!studentTestDates[t.reg_no]) studentTestDates[t.reg_no] = new Set();
+      studentTestDates[t.reg_no].add(t._date);
+      if (!studentInfo[t.reg_no]) studentInfo[t.reg_no] = { name: String(t.student_name || '').trim(), stream: String(t.stream || '').trim() };
+    }
+  }
+  const absentStudents = [];
+  const absentBatch = filters.batch || null;
+  for (const reg of accStudents) {
+    const b = studentBatch[reg];
+    if (absentBatch && b !== absentBatch) continue;
+    const batchDates = batchTestDates[b];
+    if (!batchDates || batchDates.size === 0) continue;
+    const stuDates = studentTestDates[reg] || new Set();
+    let pending = 0;
+    for (const d of batchDates) if (!stuDates.has(d)) pending++;
+    if (pending > 0) {
+      const info = studentInfo[reg] || {};
+      absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, pending });
+    }
+  }
+  absentStudents.sort((a, b) => b.pending - a.pending);
 
   const bestBatch = batchList[0] || null;
   const bottomBatch = batchList[batchList.length - 1] || null;
@@ -276,17 +320,55 @@ function computeHome(filters) {
       totalBatches: filters.batch ? 1 : accBatches.size,
       totalStudents: totalStudents,
       totalFaculty: accFaculty.size,
-      avgScore: scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0
+      avgScore: avgScore,
+      avgStudents: avgStudents,
+      absentStudents: absentStudents.length
     },
     toppers: studentList.slice(0, 5),
     bottom: studentList.slice(-5).reverse(),
     bestBatch: bestBatch ? { ...bestBatch, topStudents: topStudentsOf(bestBatch.batch, 3) } : null,
     bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
+    absentStudents: absentStudents.slice(0, 10),
     filterOptions: {
       centers: allCenters(),
       streams: [...new Set(DATA.tests.map(t => t.stream).filter(Boolean))].sort(),
       batches: [...accBatches].sort()
     }
+  };
+}
+
+// ── STUDENT SEARCH (separate tab) ───────────────────
+// Returns full test history for a regno, with only the subjects the
+// student actually studies (JEE → no Zoo/Bot, NEET → no Maths).
+function getStudentDetail(regno) {
+  const tests = DATA.tests.filter(t => t.reg_no === regno);
+  if (tests.length === 0) return null;
+  const first = tests[0];
+  const stream = String(first.stream || '').trim();
+  const subjects = streamSubjects(stream);
+  const history = tests.map(t => {
+    const row = {
+      date: String(t._date || '').trim(),
+      type: String(t._type || '').trim(),
+      pattern: String(t._pattern || '').trim(),
+      series: String(t.series || '').trim(),
+      total: parseNum(t.totalmarks),
+      score: parseNum(t.userscore),
+      pct: parsePct(t.markspercent),
+      rank: t._rank || null,
+      subjects: {}
+    };
+    for (const s of subjects) row.subjects[s] = parseNum(t[s + '_marks']);
+    return row;
+  });
+  history.sort((a, b) => (parseTestDate(a.date) || 0) - (parseTestDate(b.date) || 0));
+  return {
+    regno: regno,
+    name: String(first.student_name || '').trim(),
+    stream: stream,
+    batch: String(first.current_batch || '').trim(),
+    subjects: subjects,
+    history: history
   };
 }

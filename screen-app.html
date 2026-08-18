@@ -124,6 +124,20 @@
             <div class="stat-label">Avg Score</div>
           </div>
         </div>
+        <div class="stat-card stat-teal">
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-number" id="homeKpiAvgStudents">0</div>
+            <div class="stat-label">Average Students</div>
+          </div>
+        </div>
+        <div class="stat-card stat-red">
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-number" id="homeKpiAbsent">0</div>
+            <div class="stat-label">Absent Students</div>
+          </div>
+        </div>
       </div>
 
       <!-- TOPPER / BOTTOM STUDENTS -->
@@ -160,10 +174,51 @@
         </div>
       </div>
 
+      <!-- ABSENT STUDENTS -->
+      <div class="table-card" style="margin-top:20px">
+        <h3 class="card-title">&#10060; Absent Students (batch test hua, paper nahi diya)</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th style="width:40px">#</th><th>Name</th><th>Reg No</th><th>Stream</th><th>Batch</th><th class="text-center">Tests Pending</th></tr></thead>
+            <tbody id="homeAbsentBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- SUBJECT GRAPH -->
       <div class="dash-card" style="margin-top:20px">
         <h3>&#128200; Subject Performance</h3>
         <div id="homeSubjectGraph"></div>
+      </div>
+    </div>
+
+    <!-- STUDENT SEARCH VIEW -->
+    <div id="view-student" class="view">
+      <div class="view-toolbar">
+        <div class="filter-row">
+          <div class="filter-group filter-search">
+            <label>Student Reg No</label>
+            <input type="text" id="studentSearchInput" placeholder="Enter reg no..." onkeydown="if(event.key==='Enter')searchStu()">
+          </div>
+          <div class="filter-group filter-reset"><button type="button" class="btn-reset" onclick="searchStu()">Search</button></div>
+        </div>
+      </div>
+      <div class="home-error" id="studentError"></div>
+      <div id="studentResult" style="display:none">
+        <div class="detail-stats" id="studentDetailStats"></div>
+        <div class="dash-card" style="margin-top:20px">
+          <h3>&#128200; Subject-wise % per Test</h3>
+          <div id="studentSubjectGraph"></div>
+        </div>
+        <div class="table-card" style="margin-top:20px">
+          <h3 class="card-title">Test History</h3>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="studentTestHead"><tr><th>Date</th><th>Type</th><th class="text-center">Total</th><th class="text-center">Score</th><th class="text-center">%</th><th class="text-center">Rank</th></tr></thead>
+              <tbody id="studentTestBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -268,6 +323,10 @@
     <a href="#" class="mobile-nav-link active" data-view="home" onclick="navigate('home')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Home</span>
+    </a>
+    <a href="#" class="mobile-nav-link" data-view="student" onclick="navigate('student')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
+      <span>Student</span>
     </a>
   </nav>
 </div>

@@ -40,6 +40,7 @@ function navigate(view) {
 
   // Load data for the view (render immediately if already loaded)
   if (view === 'home') loadHome();
+  if (view === 'student') loadStuView();
   if (view === 'dashboard' && !dashData) loadDashboard();
   if (view === 'batches') {
     if (batchesData.length === 0) loadBatches();

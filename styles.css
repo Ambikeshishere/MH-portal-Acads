@@ -706,3 +706,20 @@ body {
   .stats-grid.home-stats { grid-template-columns: 1fr 1fr; }
   .subject-bar-label { width: 70px; }
 }
+
+/* Extra stat accents */
+.stat-teal { border-left: 3px solid #14B8A6; }
+.stat-teal .stat-icon { background: rgba(20,184,166,0.14); color: #2DD4BF; }
+.stat-red { border-left: 3px solid var(--pw-red); }
+.stat-red .stat-icon { background: rgba(225,29,72,0.14); color: var(--pw-red-bright); }
+
+/* Student search */
+.filter-search { flex: 1; min-width: 220px; }
+.filter-search input { min-width: 220px; }
+
+/* Student per-test subject graph */
+.stu-test-block {
+  padding: 14px; border: 1px solid var(--pw-border); border-radius: 12px;
+  background: var(--pw-bg-2); margin-bottom: 12px;
+}
+.stu-test-date { font-size: 13px; font-weight: 700; color: var(--pw-text); margin-bottom: 10px; }

@@ -61,6 +61,8 @@ function renderHome() {
   document.getElementById('homeKpiStudents').textContent = k.totalStudents.toLocaleString();
   document.getElementById('homeKpiFaculty').textContent = k.totalFaculty.toLocaleString();
   document.getElementById('homeKpiAvg').textContent = k.avgScore + '%';
+  document.getElementById('homeKpiAvgStudents').textContent = (k.avgStudents || 0).toLocaleString();
+  document.getElementById('homeKpiAbsent').textContent = (k.absentStudents || 0).toLocaleString();
 
   // ── Toppers ──
   renderStudentTable('homeTopperBody', result.toppers);
@@ -71,8 +73,25 @@ function renderHome() {
   renderBatchCard('homeBestBatch', result.bestBatch, true);
   renderBatchCard('homeBottomBatch', result.bottomBatch, false);
 
+  // ── Absent students ──
+  renderAbsentStudents(result.absentStudents);
+
   // ── Subject graph ──
   renderSubjectGraph(result.subjectGraph);
+}
+
+function renderAbsentStudents(list) {
+  const body = document.getElementById('homeAbsentBody');
+  body.innerHTML = (list || []).map((s, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${esc(s.name || '—')}</td>
+      <td>${esc(s.regno)}</td>
+      <td>${esc(s.stream || '—')}</td>
+      <td>${esc(s.batch || '—')}</td>
+      <td class="text-center"><span class="status-badge status-poor">${s.pending}</span></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
 }
 
 // Which subject columns to show (Faculty → own subjects only)

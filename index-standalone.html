@@ -331,6 +331,20 @@
             <div class="stat-label">Avg Score</div>
           </div>
         </div>
+        <div class="stat-card stat-teal">
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-number" id="homeKpiAvgStudents">0</div>
+            <div class="stat-label">Average Students</div>
+          </div>
+        </div>
+        <div class="stat-card stat-red">
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-number" id="homeKpiAbsent">0</div>
+            <div class="stat-label">Absent Students</div>
+          </div>
+        </div>
       </div>
 
       <!-- TOPPER / BOTTOM STUDENTS -->
@@ -367,10 +381,51 @@
         </div>
       </div>
 
+      <!-- ABSENT STUDENTS -->
+      <div class="table-card" style="margin-top:20px">
+        <h3 class="card-title">&#10060; Absent Students (batch test hua, paper nahi diya)</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th style="width:40px">#</th><th>Name</th><th>Reg No</th><th>Stream</th><th>Batch</th><th class="text-center">Tests Pending</th></tr></thead>
+            <tbody id="homeAbsentBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- SUBJECT GRAPH -->
       <div class="dash-card" style="margin-top:20px">
         <h3>&#128200; Subject Performance</h3>
         <div id="homeSubjectGraph"></div>
+      </div>
+    </div>
+
+    <!-- STUDENT SEARCH VIEW -->
+    <div id="view-student" class="view">
+      <div class="view-toolbar">
+        <div class="filter-row">
+          <div class="filter-group filter-search">
+            <label>Student Reg No</label>
+            <input type="text" id="studentSearchInput" placeholder="Enter reg no..." onkeydown="if(event.key==='Enter')searchStu()">
+          </div>
+          <div class="filter-group filter-reset"><button type="button" class="btn-reset" onclick="searchStu()">Search</button></div>
+        </div>
+      </div>
+      <div class="home-error" id="studentError"></div>
+      <div id="studentResult" style="display:none">
+        <div class="detail-stats" id="studentDetailStats"></div>
+        <div class="dash-card" style="margin-top:20px">
+          <h3>&#128200; Subject-wise % per Test</h3>
+          <div id="studentSubjectGraph"></div>
+        </div>
+        <div class="table-card" style="margin-top:20px">
+          <h3 class="card-title">Test History</h3>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="studentTestHead"><tr><th>Date</th><th>Type</th><th class="text-center">Total</th><th class="text-center">Score</th><th class="text-center">%</th><th class="text-center">Rank</th></tr></thead>
+              <tbody id="studentTestBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -476,6 +531,10 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Home</span>
     </a>
+    <a href="#" class="mobile-nav-link" data-view="student" onclick="navigate('student')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
+      <span>Student</span>
+    </a>
   </nav>
 </div>
   <!-- ===== overlay.html (inlined) ===== -->
@@ -533,6 +592,7 @@ function navigate(view) {
 
   // Load data for the view (render immediately if already loaded)
   if (view === 'home') loadHome();
+  if (view === 'student') loadStuView();
   if (view === 'dashboard' && !dashData) loadDashboard();
   if (view === 'batches') {
     if (batchesData.length === 0) loadBatches();
@@ -1180,6 +1240,14 @@ function facultySubjects(email) {
   return [...subs];
 }
 
+// Subjects a student studies, based on their stream.
+// NEET → no Maths; JEE & Foundation → no Zoology/Botany.
+function streamSubjects(stream) {
+  const s = String(stream || '');
+  if (s.includes('NEET')) return ['physics', 'chemistry', 'zoology', 'botany'];
+  return ['physics', 'chemistry', 'maths'];
+}
+
 // ── HOME COMPUTATION ─────────────────────────────────
 // filters: { centers:[], stream:'', batch:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
@@ -1303,6 +1371,42 @@ function computeHome(filters) {
   const totalStudents = filters.batch
     ? studentList.filter(s => s.batch === filters.batch).length
     : accStudents.size;
+  const avgScore = scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0;
+
+  // 9) Average students — within ±5% of the overall average score
+  const avgLo = avgScore - 5, avgHi = avgScore + 5;
+  const avgStudents = studentList.filter(s => s.avg >= avgLo && s.avg <= avgHi).length;
+
+  // 10) Absent students — their batch had a test but they didn't give it.
+  //     Pending = number of batch tests the student missed.
+  const batchTestDates = {};
+  const studentTestDates = {};
+  const studentInfo = {};
+  for (const t of DATA.tests) {
+    const b = t.current_batch;
+    if (b) { if (!batchTestDates[b]) batchTestDates[b] = new Set(); batchTestDates[b].add(t._date); }
+    if (t.reg_no) {
+      if (!studentTestDates[t.reg_no]) studentTestDates[t.reg_no] = new Set();
+      studentTestDates[t.reg_no].add(t._date);
+      if (!studentInfo[t.reg_no]) studentInfo[t.reg_no] = { name: String(t.student_name || '').trim(), stream: String(t.stream || '').trim() };
+    }
+  }
+  const absentStudents = [];
+  const absentBatch = filters.batch || null;
+  for (const reg of accStudents) {
+    const b = studentBatch[reg];
+    if (absentBatch && b !== absentBatch) continue;
+    const batchDates = batchTestDates[b];
+    if (!batchDates || batchDates.size === 0) continue;
+    const stuDates = studentTestDates[reg] || new Set();
+    let pending = 0;
+    for (const d of batchDates) if (!stuDates.has(d)) pending++;
+    if (pending > 0) {
+      const info = studentInfo[reg] || {};
+      absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, pending });
+    }
+  }
+  absentStudents.sort((a, b) => b.pending - a.pending);
 
   const bestBatch = batchList[0] || null;
   const bottomBatch = batchList[batchList.length - 1] || null;
@@ -1314,18 +1418,56 @@ function computeHome(filters) {
       totalBatches: filters.batch ? 1 : accBatches.size,
       totalStudents: totalStudents,
       totalFaculty: accFaculty.size,
-      avgScore: scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0
+      avgScore: avgScore,
+      avgStudents: avgStudents,
+      absentStudents: absentStudents.length
     },
     toppers: studentList.slice(0, 5),
     bottom: studentList.slice(-5).reverse(),
     bestBatch: bestBatch ? { ...bestBatch, topStudents: topStudentsOf(bestBatch.batch, 3) } : null,
     bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
+    absentStudents: absentStudents.slice(0, 10),
     filterOptions: {
       centers: allCenters(),
       streams: [...new Set(DATA.tests.map(t => t.stream).filter(Boolean))].sort(),
       batches: [...accBatches].sort()
     }
+  };
+}
+
+// ── STUDENT SEARCH (separate tab) ───────────────────
+// Returns full test history for a regno, with only the subjects the
+// student actually studies (JEE → no Zoo/Bot, NEET → no Maths).
+function getStudentDetail(regno) {
+  const tests = DATA.tests.filter(t => t.reg_no === regno);
+  if (tests.length === 0) return null;
+  const first = tests[0];
+  const stream = String(first.stream || '').trim();
+  const subjects = streamSubjects(stream);
+  const history = tests.map(t => {
+    const row = {
+      date: String(t._date || '').trim(),
+      type: String(t._type || '').trim(),
+      pattern: String(t._pattern || '').trim(),
+      series: String(t.series || '').trim(),
+      total: parseNum(t.totalmarks),
+      score: parseNum(t.userscore),
+      pct: parsePct(t.markspercent),
+      rank: t._rank || null,
+      subjects: {}
+    };
+    for (const s of subjects) row.subjects[s] = parseNum(t[s + '_marks']);
+    return row;
+  });
+  history.sort((a, b) => (parseTestDate(a.date) || 0) - (parseTestDate(b.date) || 0));
+  return {
+    regno: regno,
+    name: String(first.student_name || '').trim(),
+    stream: stream,
+    batch: String(first.current_batch || '').trim(),
+    subjects: subjects,
+    history: history
   };
 }
 /* ===== home.js ===== */
@@ -1392,6 +1534,8 @@ function renderHome() {
   document.getElementById('homeKpiStudents').textContent = k.totalStudents.toLocaleString();
   document.getElementById('homeKpiFaculty').textContent = k.totalFaculty.toLocaleString();
   document.getElementById('homeKpiAvg').textContent = k.avgScore + '%';
+  document.getElementById('homeKpiAvgStudents').textContent = (k.avgStudents || 0).toLocaleString();
+  document.getElementById('homeKpiAbsent').textContent = (k.absentStudents || 0).toLocaleString();
 
   // ── Toppers ──
   renderStudentTable('homeTopperBody', result.toppers);
@@ -1402,8 +1546,25 @@ function renderHome() {
   renderBatchCard('homeBestBatch', result.bestBatch, true);
   renderBatchCard('homeBottomBatch', result.bottomBatch, false);
 
+  // ── Absent students ──
+  renderAbsentStudents(result.absentStudents);
+
   // ── Subject graph ──
   renderSubjectGraph(result.subjectGraph);
+}
+
+function renderAbsentStudents(list) {
+  const body = document.getElementById('homeAbsentBody');
+  body.innerHTML = (list || []).map((s, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${esc(s.name || '—')}</td>
+      <td>${esc(s.regno)}</td>
+      <td>${esc(s.stream || '—')}</td>
+      <td>${esc(s.batch || '—')}</td>
+      <td class="text-center"><span class="status-badge status-poor">${s.pending}</span></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
 }
 
 // Which subject columns to show (Faculty → own subjects only)
@@ -1510,6 +1671,125 @@ function resetHomeFilters() {
   document.getElementById('homeDateFrom').value = '';
   document.getElementById('homeDateTo').value = '';
   renderHome();
+}
+/* ===== student.js ===== */
+// ============================================================
+//  student.js — STUDENT SEARCH TAB
+//  Enter a reg no → full test history with subject-wise marks and
+//  a per-test subject % graph. Faculty sees only their own subjects.
+//  Percent per subject = subject_marks / userscore * 100.
+//  JEE students don't study Zoology/Botany; NEET don't study Maths.
+//
+//  Depends on: core.js (user, esc, scoreBadge), data.js
+// ============================================================
+
+function loadStuView() {
+  // Ensure data is loaded so search works immediately
+  loadData().catch(() => {});
+}
+
+function searchStu() {
+  const input = document.getElementById('studentSearchInput');
+  const regno = input.value.trim();
+  const err = document.getElementById('studentError');
+  err.classList.remove('show');
+  err.textContent = '';
+  const result = document.getElementById('studentResult');
+  if (!regno) { err.textContent = 'Enter a reg no'; err.classList.add('show'); return; }
+
+  showLoading();
+  loadData().then(() => {
+    const detail = getStudentDetail(regno);
+    hideLoading();
+    if (!detail) {
+      result.style.display = 'none';
+      err.textContent = 'Student not found: ' + regno;
+      err.classList.add('show');
+      return;
+    }
+    result.style.display = 'block';
+    renderStuDetail(detail);
+  }).catch(() => { hideLoading(); err.textContent = 'Data load failed'; err.classList.add('show'); });
+}
+
+function renderStuDetail(detail) {
+  // ── Student info ──
+  const tests = detail.history.length;
+  const avg = tests > 0 ? +(detail.history.reduce((s, t) => s + t.pct, 0) / tests).toFixed(1) : 0;
+  document.getElementById('studentDetailStats').innerHTML = `
+    <div class="detail-stat"><div class="ds-value">${esc(detail.name || '—')}</div><div class="ds-label">Name</div></div>
+    <div class="detail-stat"><div class="ds-value">${esc(detail.regno)}</div><div class="ds-label">Reg No</div></div>
+    <div class="detail-stat"><div class="ds-value">${esc(detail.stream || '—')}</div><div class="ds-label">Stream</div></div>
+    <div class="detail-stat"><div class="ds-value">${esc(detail.batch || '—')}</div><div class="ds-label">Batch</div></div>
+    <div class="detail-stat"><div class="ds-value">${tests}</div><div class="ds-label">Tests</div></div>
+    <div class="detail-stat"><div class="ds-value">${avg}%</div><div class="ds-label">Avg %</div></div>
+  `;
+
+  // ── Subject % graph (per test) ──
+  renderStuGraph(detail);
+
+  // ── Test history table ──
+  const subs = visibleStuSubjects(detail);
+  const head = document.getElementById('studentTestHead');
+  head.innerHTML = '<tr><th>Date</th><th>Type</th>' +
+    subs.map(s => '<th class="text-center">' + SUBJ_LABELS[s] + '</th>').join('') +
+    '<th class="text-center">Total</th><th class="text-center">Score</th><th class="text-center">%</th><th class="text-center">Rank</th></tr>';
+
+  const body = document.getElementById('studentTestBody');
+  body.innerHTML = detail.history.map(t => `
+    <tr>
+      <td>${esc(t.date)}</td>
+      <td>${esc(t.type)}</td>
+      ${subs.map(s => `<td class="text-center">${t.subjects[s] > 0 ? t.subjects[s] : '—'}</td>`).join('')}
+      <td class="text-center">${t.total}</td>
+      <td class="text-center">${t.score}</td>
+      <td class="text-center"><span class="status-badge ${scoreBadge(t.pct)}">${t.pct}%</span></td>
+      <td class="text-center">${t.rank || '—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="' + (6 + subs.length) + '" class="empty-msg"><p>No tests</p></td></tr>';
+}
+
+// Subjects to show for a student: their stream subjects, but Faculty
+// only sees their own subjects.
+function visibleStuSubjects(detail) {
+  let subs = detail.subjects;
+  if (user.level < 2) {
+    const own = facultySubjects(user.email);
+    if (own.length) subs = subs.filter(s => own.includes(s));
+  }
+  return subs;
+}
+
+function renderStuGraph(detail) {
+  const wrap = document.getElementById('studentSubjectGraph');
+  const subs = visibleStuSubjects(detail);
+  if (!detail.history.length) { wrap.innerHTML = '<div class="empty-msg"><p>No tests</p></div>'; return; }
+
+  // percent per subject per test = subject_marks / userscore * 100
+  const rows = detail.history.map(t => {
+    const per = {};
+    for (const s of subs) per[s] = t.score > 0 ? +((t.subjects[s] / t.score) * 100).toFixed(1) : 0;
+    return { date: t.date, per };
+  });
+
+  const max = Math.max(1, ...rows.flatMap(r => subs.map(s => r.per[s])));
+  wrap.innerHTML = `
+    <div class="graph-title">Subject % of total score per test — <strong>${esc(detail.name || detail.regno)}</strong></div>
+    ${rows.map(r => `
+      <div class="stu-test-block">
+        <div class="stu-test-date">${esc(r.date)}</div>
+        ${subs.map(s => `
+          <div class="subject-bar-row">
+            <div class="subject-bar-label">${SUBJ_LABELS[s]}</div>
+            <div class="subject-bar-track">
+              <div class="subject-bar-fill" style="width:${Math.round((r.per[s] / max) * 100)}%"></div>
+            </div>
+            <div class="subject-bar-value">${r.per[s]}%</div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+  `;
 }
 /* ===== dashboard.js ===== */
 // ============================================================
