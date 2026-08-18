@@ -150,6 +150,11 @@ function streamSubjects(stream) {
   return ['physics', 'chemistry', 'maths'];
 }
 
+// Normalize a class/stream string so "12th NEET" matches "12 NEET".
+function normStream(s) {
+  return String(s || '').replace(/\b(\d+)(st|nd|rd|th)\b/gi, '$1').trim();
+}
+
 // ── HOME COMPUTATION ─────────────────────────────────
 // filters: { centers:[], stream:'', batch:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
@@ -166,6 +171,7 @@ function computeHome(filters) {
 
   // 2) Accessible batches + students come from the STUDENTS sheet.
   //    Batch count and student count are driven by enrolled students.
+  //    Stream + batch filters apply here too (so KPIs/absent respect them).
   const studentBatch = {};
   const accBatches = new Set();
   const accStudents = new Set();
@@ -173,7 +179,12 @@ function computeHome(filters) {
     const reg = r.regno, b = r.batch;
     if (!reg) return;
     studentBatch[reg] = b;
-    if (b && centerSet.has(batchCenter[b])) { accBatches.add(b); accStudents.add(reg); }
+    if (b && centerSet.has(batchCenter[b])) {
+      if (filters.stream && normStream(r.class_course) !== filters.stream) return;
+      if (filters.batch && b !== filters.batch) return;
+      accBatches.add(b);
+      accStudents.add(reg);
+    }
   });
 
   // 3) Faculty in scope
@@ -270,9 +281,7 @@ function computeHome(filters) {
   // 8) KPIs
   const totalPct = filteredTests.reduce((s, t) => s + parsePct(t.markspercent), 0);
   const scoredTests = filteredTests.filter(t => parsePct(t.markspercent) > 0).length;
-  const totalStudents = filters.batch
-    ? studentList.filter(s => s.batch === filters.batch).length
-    : accStudents.size;
+  const totalStudents = accStudents.size; // already respects center/stream/batch filters
   const avgScore = scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0;
 
   // 9) Average students — within ±5% of the overall average score
@@ -280,7 +289,7 @@ function computeHome(filters) {
   const avgStudents = studentList.filter(s => s.avg >= avgLo && s.avg <= avgHi).length;
 
   // 10) Absent students — their batch had a test but they didn't give it.
-  //     Pending = number of batch tests the student missed.
+  //     Pending = number of batch tests the student missed (within date range).
   //     Name/stream come from the STUDENTS sheet (student_name, class_course).
   const batchTestDates = {};
   const studentTestDates = {};
@@ -291,6 +300,12 @@ function computeHome(filters) {
     }
   }
   for (const t of DATA.tests) {
+    if (dateFrom || dateTo) {
+      const d = parseTestDate(t._date);
+      if (!d) continue;
+      if (dateFrom && d < dateFrom) continue;
+      if (dateTo && d > dateTo) continue;
+    }
     const b = t.current_batch;
     if (b) { if (!batchTestDates[b]) batchTestDates[b] = new Set(); batchTestDates[b].add(t._date); }
     if (t.reg_no) {
@@ -299,10 +314,8 @@ function computeHome(filters) {
     }
   }
   const absentStudents = [];
-  const absentBatch = filters.batch || null;
   for (const reg of accStudents) {
     const b = studentBatch[reg];
-    if (absentBatch && b !== absentBatch) continue;
     const batchDates = batchTestDates[b];
     if (!batchDates || batchDates.size === 0) continue;
     const stuDates = studentTestDates[reg] || new Set();
@@ -319,10 +332,43 @@ function computeHome(filters) {
   const bottomBatch = batchList[batchList.length - 1] || null;
   const graphBatch = filters.batch || (bestBatch ? bestBatch.batch : null);
 
-  // Top 10% / bottom 10% of the SCORE RANGE (not student count):
-  // avg score >= 90% → topper band, avg score <= 10% → bottom band.
-  const TOP_BAND = 90;
-  const BOT_BAND = 10;
+  // Top / bottom bands relative to the observed max & min avg score:
+  // topper band = [maxAvg - 10, maxAvg], bottom band = [minAvg, minAvg + 10].
+  let toppers = [], bottom = [];
+  if (studentList.length > 0) {
+    const maxAvg = studentList[0].avg;
+    const minAvg = studentList[studentList.length - 1].avg;
+    toppers = studentList.filter(s => s.avg >= maxAvg - 10);
+    bottom = studentList.filter(s => s.avg <= minAvg + 10).reverse();
+  }
+
+  // 11) Batch subject-wise % per test (like the student graph)
+  function batchSubjectGraphData(batch) {
+    const perTest = {};
+    const hasSubj = {};
+    for (const t of filteredTests) {
+      if (t.current_batch !== batch) continue;
+      const d = t._date;
+      if (!perTest[d]) perTest[d] = { scoreSum: 0, subjSum: {} };
+      perTest[d].scoreSum += parseNum(t.userscore);
+      for (const s of SUBJ_NAMES) {
+        const v = parseNum(t[s + '_marks']);
+        if (v > 0) { perTest[d].subjSum[s] = (perTest[d].subjSum[s] || 0) + v; hasSubj[s] = true; }
+      }
+    }
+    // Only subjects that actually appear in this batch's tests
+    // (a NEET batch has no Maths, so no flat 0% line).
+    const subs = SUBJ_NAMES.filter(s => hasSubj[s]);
+    const dates = Object.keys(perTest).sort((a, b) => (parseTestDate(a) || 0) - (parseTestDate(b) || 0));
+    return dates.map(date => {
+      const d = perTest[date];
+      const subjects = {};
+      for (const s of subs) {
+        subjects[s] = d.scoreSum > 0 ? +(((d.subjSum[s] || 0) / d.scoreSum) * 100).toFixed(1) : 0;
+      }
+      return { date, score: d.scoreSum, subjects };
+    });
+  }
 
   return {
     kpis: {
@@ -334,11 +380,12 @@ function computeHome(filters) {
       avgStudents: avgStudents,
       absentStudents: absentStudents.length
     },
-    toppers: studentList.filter(s => s.avg >= TOP_BAND),
-    bottom: studentList.filter(s => s.avg <= BOT_BAND).reverse(),
+    toppers: toppers,
+    bottom: bottom,
     bestBatch: bestBatch ? { ...bestBatch, topStudents: topStudentsOf(bestBatch.batch, 3) } : null,
     bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
+    batchSubjectGraph: graphBatch ? { batch: graphBatch, history: batchSubjectGraphData(graphBatch) } : null,
     absentStudents: absentStudents.slice(0, 10),
     filterOptions: {
       centers: allCenters(),

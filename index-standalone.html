@@ -351,7 +351,7 @@
       <div class="home-grid">
         <div class="table-card">
           <h3 class="card-title">&#127942; Topper Students</h3>
-          <div class="table-scroll">
+          <div class="table-scroll table-scroll--fixed">
             <table class="data-table">
               <thead id="homeTopperHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
               <tbody id="homeTopperBody"></tbody>
@@ -360,7 +360,7 @@
         </div>
         <div class="table-card">
           <h3 class="card-title">&#9888;&#65039; Bottom Performing Students</h3>
-          <div class="table-scroll">
+          <div class="table-scroll table-scroll--fixed">
             <table class="data-table">
               <thead id="homeBottomHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
               <tbody id="homeBottomBody"></tbody>
@@ -1248,6 +1248,11 @@ function streamSubjects(stream) {
   return ['physics', 'chemistry', 'maths'];
 }
 
+// Normalize a class/stream string so "12th NEET" matches "12 NEET".
+function normStream(s) {
+  return String(s || '').replace(/\b(\d+)(st|nd|rd|th)\b/gi, '$1').trim();
+}
+
 // ── HOME COMPUTATION ─────────────────────────────────
 // filters: { centers:[], stream:'', batch:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
@@ -1264,6 +1269,7 @@ function computeHome(filters) {
 
   // 2) Accessible batches + students come from the STUDENTS sheet.
   //    Batch count and student count are driven by enrolled students.
+  //    Stream + batch filters apply here too (so KPIs/absent respect them).
   const studentBatch = {};
   const accBatches = new Set();
   const accStudents = new Set();
@@ -1271,7 +1277,12 @@ function computeHome(filters) {
     const reg = r.regno, b = r.batch;
     if (!reg) return;
     studentBatch[reg] = b;
-    if (b && centerSet.has(batchCenter[b])) { accBatches.add(b); accStudents.add(reg); }
+    if (b && centerSet.has(batchCenter[b])) {
+      if (filters.stream && normStream(r.class_course) !== filters.stream) return;
+      if (filters.batch && b !== filters.batch) return;
+      accBatches.add(b);
+      accStudents.add(reg);
+    }
   });
 
   // 3) Faculty in scope
@@ -1368,9 +1379,7 @@ function computeHome(filters) {
   // 8) KPIs
   const totalPct = filteredTests.reduce((s, t) => s + parsePct(t.markspercent), 0);
   const scoredTests = filteredTests.filter(t => parsePct(t.markspercent) > 0).length;
-  const totalStudents = filters.batch
-    ? studentList.filter(s => s.batch === filters.batch).length
-    : accStudents.size;
+  const totalStudents = accStudents.size; // already respects center/stream/batch filters
   const avgScore = scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0;
 
   // 9) Average students — within ±5% of the overall average score
@@ -1378,7 +1387,7 @@ function computeHome(filters) {
   const avgStudents = studentList.filter(s => s.avg >= avgLo && s.avg <= avgHi).length;
 
   // 10) Absent students — their batch had a test but they didn't give it.
-  //     Pending = number of batch tests the student missed.
+  //     Pending = number of batch tests the student missed (within date range).
   //     Name/stream come from the STUDENTS sheet (student_name, class_course).
   const batchTestDates = {};
   const studentTestDates = {};
@@ -1389,6 +1398,12 @@ function computeHome(filters) {
     }
   }
   for (const t of DATA.tests) {
+    if (dateFrom || dateTo) {
+      const d = parseTestDate(t._date);
+      if (!d) continue;
+      if (dateFrom && d < dateFrom) continue;
+      if (dateTo && d > dateTo) continue;
+    }
     const b = t.current_batch;
     if (b) { if (!batchTestDates[b]) batchTestDates[b] = new Set(); batchTestDates[b].add(t._date); }
     if (t.reg_no) {
@@ -1397,10 +1412,8 @@ function computeHome(filters) {
     }
   }
   const absentStudents = [];
-  const absentBatch = filters.batch || null;
   for (const reg of accStudents) {
     const b = studentBatch[reg];
-    if (absentBatch && b !== absentBatch) continue;
     const batchDates = batchTestDates[b];
     if (!batchDates || batchDates.size === 0) continue;
     const stuDates = studentTestDates[reg] || new Set();
@@ -1417,10 +1430,43 @@ function computeHome(filters) {
   const bottomBatch = batchList[batchList.length - 1] || null;
   const graphBatch = filters.batch || (bestBatch ? bestBatch.batch : null);
 
-  // Top 10% / bottom 10% of the SCORE RANGE (not student count):
-  // avg score >= 90% → topper band, avg score <= 10% → bottom band.
-  const TOP_BAND = 90;
-  const BOT_BAND = 10;
+  // Top / bottom bands relative to the observed max & min avg score:
+  // topper band = [maxAvg - 10, maxAvg], bottom band = [minAvg, minAvg + 10].
+  let toppers = [], bottom = [];
+  if (studentList.length > 0) {
+    const maxAvg = studentList[0].avg;
+    const minAvg = studentList[studentList.length - 1].avg;
+    toppers = studentList.filter(s => s.avg >= maxAvg - 10);
+    bottom = studentList.filter(s => s.avg <= minAvg + 10).reverse();
+  }
+
+  // 11) Batch subject-wise % per test (like the student graph)
+  function batchSubjectGraphData(batch) {
+    const perTest = {};
+    const hasSubj = {};
+    for (const t of filteredTests) {
+      if (t.current_batch !== batch) continue;
+      const d = t._date;
+      if (!perTest[d]) perTest[d] = { scoreSum: 0, subjSum: {} };
+      perTest[d].scoreSum += parseNum(t.userscore);
+      for (const s of SUBJ_NAMES) {
+        const v = parseNum(t[s + '_marks']);
+        if (v > 0) { perTest[d].subjSum[s] = (perTest[d].subjSum[s] || 0) + v; hasSubj[s] = true; }
+      }
+    }
+    // Only subjects that actually appear in this batch's tests
+    // (a NEET batch has no Maths, so no flat 0% line).
+    const subs = SUBJ_NAMES.filter(s => hasSubj[s]);
+    const dates = Object.keys(perTest).sort((a, b) => (parseTestDate(a) || 0) - (parseTestDate(b) || 0));
+    return dates.map(date => {
+      const d = perTest[date];
+      const subjects = {};
+      for (const s of subs) {
+        subjects[s] = d.scoreSum > 0 ? +(((d.subjSum[s] || 0) / d.scoreSum) * 100).toFixed(1) : 0;
+      }
+      return { date, score: d.scoreSum, subjects };
+    });
+  }
 
   return {
     kpis: {
@@ -1432,11 +1478,12 @@ function computeHome(filters) {
       avgStudents: avgStudents,
       absentStudents: absentStudents.length
     },
-    toppers: studentList.filter(s => s.avg >= TOP_BAND),
-    bottom: studentList.filter(s => s.avg <= BOT_BAND).reverse(),
+    toppers: toppers,
+    bottom: bottom,
     bestBatch: bestBatch ? { ...bestBatch, topStudents: topStudentsOf(bestBatch.batch, 3) } : null,
     bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
+    batchSubjectGraph: graphBatch ? { batch: graphBatch, history: batchSubjectGraphData(graphBatch) } : null,
     absentStudents: absentStudents.slice(0, 10),
     filterOptions: {
       centers: allCenters(),
@@ -1560,7 +1607,7 @@ function renderHome() {
   renderAbsentStudents(result.absentStudents);
 
   // ── Subject graph ──
-  renderSubjectGraph(result.subjectGraph);
+  renderSubjectGraph(result.batchSubjectGraph);
 }
 
 function renderAbsentStudents(list) {
@@ -1594,7 +1641,9 @@ function renderStudentTable(bodyId, students) {
       subs.map(s => '<th class="text-center">' + SUBJ_LABELS[s] + '</th>').join('') + '</tr>';
   }
   const body = document.getElementById(bodyId);
-  body.innerHTML = students.map((s, i) => `
+  // Show only the top 10 rows (scrollable container handles the rest)
+  const rows = (students || []).slice(0, 10);
+  body.innerHTML = rows.map((s, i) => `
     <tr>
       <td>${i + 1}</td>
       <td><div class="stu-name">${esc(s.name || '—')}</div><div class="stu-meta">${esc(s.regno)}</div></td>
@@ -1631,25 +1680,95 @@ function renderBatchCard(id, batch, isBest) {
   `;
 }
 
+// Current chart data for home subject-graph hover tooltips
+let homeChartData = null;
+
 function renderSubjectGraph(graph) {
   const wrap = document.getElementById('homeSubjectGraph');
-  if (!graph) { wrap.innerHTML = '<div class="empty-msg"><p>No data</p></div>'; return; }
-  const subs = visibleSubjects();
-  const max = Math.max(1, ...graph.subjects.filter(s => subs.includes(s.subject.toLowerCase())).map(s => s.avg));
+  if (!graph || !graph.history || !graph.history.length) {
+    wrap.innerHTML = '<div class="empty-msg"><p>No data</p></div>';
+    return;
+  }
+  const history = graph.history;
+  const subs = visibleSubjects().filter(s => history.some(t => t.subjects && s in t.subjects));
+  homeChartData = { history, subjects: subs };
+
+  const W = 720, H = 340, PL = 46, PR = 30, PT = 24, PB = 46;
+  const plotW = W - PL - PR, plotH = H - PT - PB;
+  const n = history.length;
+  const x = i => PL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const y = v => PT + plotH - (v / 100) * plotH; // y-axis is 0-100%
+
+  // One line per subject (percent of score per test)
+  const lines = subs.map(s => {
+    const path = history.map((t, i) => (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(t.subjects[s] || 0).toFixed(1)).join(' ');
+    const points = history.map((t, i) =>
+      `<circle cx="${x(i)}" cy="${y(t.subjects[s] || 0)}" r="3.5" fill="${SUBJ_COLORS[s]}" stroke="#0b0b0f" stroke-width="1"/>`).join('');
+    return `<path d="${path}" fill="none" stroke="${SUBJ_COLORS[s]}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${points}`;
+  }).join('');
+
+  // Y-axis gridlines (0,25,50,75,100)
+  const gridlines = [0, 25, 50, 75, 100].map(v => {
+    const yy = y(v);
+    return `<line x1="${PL}" y1="${yy}" x2="${W - PR}" y2="${yy}" stroke="rgba(255,255,255,0.08)"/>
+      <text x="${PL - 8}" y="${yy + 4}" text-anchor="end" class="chart-label">${v}</text>`;
+  }).join('');
+
+  // X-axis labels (test dates)
+  const xLabels = history.map((t, i) =>
+    `<text x="${x(i)}" y="${H - 18}" text-anchor="middle" class="chart-label">${esc(String(t.date).replace(/, \d{4}/, ''))}</text>`).join('');
+
+  // Hover bands (one per test) + legend
+  const bandW = n === 1 ? plotW : plotW / n;
+  const bands = history.map((t, i) =>
+    `<rect x="${x(i) - bandW / 2}" y="${PT}" width="${bandW}" height="${plotH}" fill="transparent"
+      onmousemove="moveHomeTooltip(event)" onmouseover="showHomeTooltip(${i})" onmouseout="hideHomeTooltip()"/>`).join('');
+
   wrap.innerHTML = `
-    <div class="graph-title">Subject Averages — <strong>${esc(graph.batch)}</strong></div>
-    <div class="subject-bars">
-      ${graph.subjects.filter(s => subs.includes(s.subject.toLowerCase())).map(s => `
-        <div class="subject-bar-row">
-          <div class="subject-bar-label">${s.subject}</div>
-          <div class="subject-bar-track">
-            <div class="subject-bar-fill" style="width:${Math.round((s.avg / max) * 100)}%"></div>
-          </div>
-          <div class="subject-bar-value">${s.avg}</div>
-        </div>
-      `).join('')}
+    <div class="graph-title">Subject % of score per test — <strong>${esc(graph.batch)}</strong> (hover a point)</div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 ${W} ${H}" class="line-chart" preserveAspectRatio="xMidYMid meet">
+        ${gridlines}
+        <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H - PB}" stroke="rgba(255,255,255,0.15)"/>
+        <line x1="${PL}" y1="${H - PB}" x2="${W - PR}" y2="${H - PB}" stroke="rgba(255,255,255,0.15)"/>
+        ${lines}
+        ${xLabels}
+        ${bands}
+      </svg>
+      <div class="chart-legend">
+        ${subs.map(s => `<span><i class="legend-dot" style="background:${SUBJ_COLORS[s]}"></i> ${SUBJ_LABELS[s]}</span>`).join('')}
+      </div>
+      <div class="chart-tooltip" id="homeChartTooltip"></div>
     </div>
   `;
+}
+
+function showHomeTooltip(i) {
+  const d = homeChartData;
+  if (!d || !d.history[i]) return;
+  const t = d.history[i];
+  const tooltip = document.getElementById('homeChartTooltip');
+  tooltip.innerHTML =
+    `<div class="tt-date">${esc(t.date)}</div>` +
+    `<div class="tt-score">Score: <strong>${t.score}</strong></div>` +
+    d.subjects.map(s =>
+      `<div class="tt-subj"><span class="tt-dot" style="background:${SUBJ_COLORS[s]}"></span>${SUBJ_LABELS[s]}: ${t.subjects[s] || 0}%</div>`).join('');
+  tooltip.style.display = 'block';
+}
+function moveHomeTooltip(evt) {
+  const tooltip = document.getElementById('homeChartTooltip');
+  const wrap = tooltip.closest('.chart-wrap');
+  const rect = wrap.getBoundingClientRect();
+  let left = evt.clientX - rect.left + 14;
+  let top = evt.clientY - rect.top - 10;
+  if (left + tooltip.offsetWidth > rect.width) left = evt.clientX - rect.left - tooltip.offsetWidth - 14;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+}
+function hideHomeTooltip() {
+  const tooltip = document.getElementById('homeChartTooltip');
+  if (tooltip) tooltip.style.display = 'none';
 }
 
 // ── FILTER HANDLERS ─────────────────────────────────
