@@ -139,23 +139,25 @@ Plain HTML/CSS/JS that runs anywhere a browser exists. Serve over HTTP (`python3
 
 ## Role-Based Access Control
 
-The portal implements a 7-level hierarchy:
+The portal implements a 7-level hierarchy. **Role, center access, and login credentials are all decided by the `ID-Role` sheet** (email in column A, centers in column B, role in column C, PWID in column D).
 
 | Level | Role | Can See |
 |-------|------|---------|
 | 7 | **Admin** | ALL data across ALL centers |
-| 6 | **RAH** | All data in their region |
-| 5 | **RAOM** | All data in their center |
-| 4 | **CH/ACH** | All data in their center |
-| 3 | **AOM** | All data in their center |
-| 2 | **Subject Head** | Their center's batches only |
-| 1 | **Faculty** | Only their own assigned batches and students |
+| 6 | **RAH** | Whole region — all centers |
+| 5 | **RAOM** | Whole region — all centers |
+| 4 | **CH/ACH / JEE Head / NEET Head** | Their selected center(s) only (multi-select) |
+| 3 | **AOM** | Their selected center(s) only (multi-select) |
+| 2 | **Subject Head** | Their selected center(s) only (multi-select) |
+| 1 | **Faculty** | Only their own assigned batches and students (via FBM) |
 
 ### How it works:
-- The `ID-Role` sheet maps each email to a role and center
-- The `FBM` sheet maps faculty to batches and subjects
-- The backend filters all data based on the logged-in user's level
-- **Admin** sees everything; **Faculty** sees only their own data
+- **Login** resolves by **email (column A) OR PWID (column D)** — both in the `ID-Role` sheet
+- Column B can hold **multiple centers** as a comma-separated list
+- CH/ACH, AOM, JEE Head, NEET Head, and Subject Head pick their centers with the **multi-select center dropdown** in the top bar
+- RAH / RAOM / Admin see the whole region — no center restriction
+- **Faculty** sees only their own data through the `FBM` sheet (which maps faculty → batches → subjects). FBM is **not** used for authentication or for manager-level access
+- **Center changes** go through approval: users click **Change Center** → the request is emailed to their approver → on approval `ID-Role` column B is updated
 
 ---
 
@@ -288,6 +290,9 @@ All endpoints use `GET` requests except password reset (uses `POST`).
 | `getApprovalStatus` | GET | `email` | Check status of a user's approval requests |
 | `approveRequest` | GET | `token` | Approve a signup request (from email button) — returns minimal HTML page |
 | `rejectRequest` | GET | `token` | Reject a signup request (from email button) — returns minimal HTML page |
+| `requestCenterChange` | GET | `email`, `newCenter` | Request a center change (goes through approval) |
+| `approveCenterChange` | GET | `token` | Approve a center change (from email button) |
+| `rejectCenterChange` | GET | `token` | Reject a center change (from email button) |
 
 ---
 
@@ -297,9 +302,9 @@ New users sign up through the portal, but their account is **only created after 
 
 ### Signup form fields
 - **MAIL ID** — PW email address (login identifier). **Only `@pw.live` emails can sign up.**
-- **PWID** — PW ID
+- **PWID** — PW ID (also usable for login, stored in ID-Role column D)
 - **CENTER** — single center selected from a dropdown
-- **ROLE** — Faculty, Subject Head, AOM, CH/ACH, RAOM, RAH
+- **ROLE** — Faculty, Subject Head, AOM, CH/ACH, JEE Head, NEET Head, RAOM, RAH
 - **Password** — minimum 4 characters
 
 ### Approval chain (next level up)
@@ -307,7 +312,7 @@ New users sign up through the portal, but their account is **only created after 
 |-------------|----------|
 | Faculty / Subject Head | AOM |
 | AOM | CH/ACH |
-| CH/ACH | RAOM |
+| CH/ACH / JEE Head / NEET Head | RAOM |
 | RAOM | RAH |
 | RAH | Admin |
 
@@ -338,6 +343,25 @@ If **no approver exists** for the role in the `ID-Role` sheet, the approval emai
 | K | Token |
 
 > **Note:** The `checkApprovalReplies` time trigger is optional (backward compatibility for email replies). The primary approval method is the **Approve / Reject buttons** in the email.
+
+### Center change flow
+1. A logged-in user clicks **Change Center** in the top bar and picks their new center(s)
+2. A request is created in the **CenterChanges** sheet (status `Pending`) and an email with Approve/Reject buttons goes to their approver
+3. On **Approve** → `ID-Role` column B is updated with the new center(s) and the user is emailed
+4. On **Reject** → the request is marked `Rejected` and the user is notified
+
+### CenterChanges sheet structure
+| Column | Field |
+|--------|-------|
+| A | Request ID |
+| B | Email |
+| C | Old Center |
+| D | New Center |
+| E | Status |
+| F | Approver Email |
+| G | Created At |
+| H | Processed At |
+| I | Token |
 
 ---
 
