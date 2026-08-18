@@ -79,7 +79,7 @@ The entire backend runs on **Google Apps Script**, meaning no server costs, no d
 - **Default password**: `Acer@1234` (for accounts with blank password field)
 - **Forgot Password flow**: OTP-based password reset via email
 - **Session persistence**: Auto-login from browser localStorage
-- **Self signup with approval**: New users sign up (MAIL ID, PWID, CENTER, ROLE) and their account is created only after an approver approves via email link or reply
+- **Self signup with approval**: New users sign up (MAIL ID, PWID, CENTER, ROLE) and their account is created only after an approver approves via the email buttons
 
 ---
 
@@ -312,11 +312,11 @@ If **no approver exists** for the role in the `ID-Role` sheet, the approval emai
 
 ### How approval works
 1. User submits the signup form → a request is created in the **Approvals** sheet (status `Pending`)
-2. An approval email is sent to the approver with **Approve** / **Reject** links and a token
-3. The approver can either:
-   - Click the **Approve** / **Reject** link in the email, **or**
-   - Reply to the email with `approve` or `reject` (scanned by the `checkApprovalReplies` time trigger)
-4. On approval, the user is created in the **ID-Role** sheet and login details are emailed to them
+2. An approval email is sent to the approver with two buttons: **Approve** and **Reject**
+3. The approver clicks a button:
+   - **Approve** → the user is created in the **ID-Role** sheet and login details are emailed to them
+   - **Reject** → the request is marked `Rejected` and the applicant is notified
+4. Clicking a button opens a minimal confirmation page (not the portal) and the applicant receives a confirmation email
 5. The user can then log in with their email + password
 
 ### Approvals sheet structure
@@ -334,7 +334,7 @@ If **no approver exists** for the role in the `ID-Role` sheet, the approval emai
 | J | Processed At |
 | K | Token |
 
-> **Note:** Set up a time trigger for `checkApprovalReplies` (Triggers → Add Trigger → Time-driven → Every 5 minutes) to auto-process email replies.
+> **Note:** The `checkApprovalReplies` time trigger is optional (backward compatibility for email replies). The primary approval method is the **Approve / Reject buttons** in the email.
 
 ---
 

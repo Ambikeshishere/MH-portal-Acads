@@ -261,13 +261,37 @@ function handleSignup(e) {
     'PWID: ' + pwid + '\n' +
     'Center: ' + center + '\n' +
     'Role: ' + role + '\n\n' +
-    'APPROVE: Reply to this email with "approve" or click:\n' + approveUrl + '\n\n' +
-    'REJECT: Reply with "reject" or click:\n' + rejectUrl + '\n\n' +
+    'Approve or reject using the buttons in the email.\n' +
     'TOKEN:' + token + '\n\n' +
     'If you do nothing, the request stays on hold.';
 
+  // HTML version with Approve / Reject buttons
+  const htmlBody =
+    '<div style="font-family:Arial,Helvetica,sans-serif;background:#0A0A0B;padding:24px;color:#F5F5F7">' +
+      '<div style="max-width:520px;margin:0 auto;background:#151518;border:1px solid #26262B;border-radius:14px;overflow:hidden">' +
+        '<div style="background:linear-gradient(135deg,#EF4444,#B91C1C);padding:20px 24px;text-align:center">' +
+          '<div style="font-size:20px;font-weight:800;color:#fff">PW Portal — ID Approval</div>' +
+          '<div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">Request ' + requestId + '</div>' +
+        '</div>' +
+        '<div style="padding:24px">' +
+          '<p style="margin:0 0 16px;font-size:14px;color:#A1A1AA">A new <b style="color:#F5F5F7">' + role + '</b> account request is waiting for your approval.</p>' +
+          '<table style="width:100%;font-size:13px;color:#A1A1AA;border-collapse:collapse">' +
+            '<tr><td style="padding:6px 0;color:#71717A">Email</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + email + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">PWID</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + pwid + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">Center</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + center + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">Role</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + role + '</td></tr>' +
+          '</table>' +
+          '<div style="margin-top:24px;text-align:center">' +
+            '<a href="' + approveUrl + '" style="display:inline-block;background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 32px;border-radius:8px;margin:0 6px">&#10003; Approve</a>' +
+            '<a href="' + rejectUrl + '" style="display:inline-block;background:linear-gradient(135deg,#EF4444,#B91C1C);color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 32px;border-radius:8px;margin:0 6px">&#10007; Reject</a>' +
+          '</div>' +
+          '<p style="margin:20px 0 0;font-size:12px;color:#71717A;text-align:center">Clicking a button records your response. The applicant is notified automatically.</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   try {
-    MailApp.sendEmail({ to: approverEmail, subject: subject, body: body });
+    MailApp.sendEmail({ to: approverEmail, subject: subject, body: body, htmlBody: htmlBody });
   } catch (err) {
     return json({ success: false, message: 'Failed to notify approver: ' + err });
   }
@@ -296,13 +320,16 @@ function findRequestByToken(token) {
 function handleApproveRequest(e) {
   const token = e.parameter.token;
   const result = processApproval(token, 'Approved', 'Your account has been approved. You can now login.');
-  return json(result);
+  return htmlResponse(result.success, result.message);
 }
 
 function handleRejectRequest(e) {
   const token = e.parameter.token;
   const req = findRequestByToken(token);
-  if (!req) return json({ success: false, message: 'Invalid token' });
+  if (!req) return htmlResponse(false, 'Invalid token');
+  if (req.status !== 'Pending') {
+    return htmlResponse(false, 'Request already ' + req.status + ' (ID: ' + req.requestId + ')');
+  }
   req.sheet.getRange(req.index + 1, 7).setValue('Rejected');
   req.sheet.getRange(req.index + 1, 10).setValue(new Date());
   try {
@@ -310,7 +337,7 @@ function handleRejectRequest(e) {
       subject: 'PW Portal — Signup Request Rejected',
       body: 'Your signup request (' + req.requestId + ') was rejected. Please contact your admin.' });
   } catch (_) {}
-  return json({ success: true, message: 'Request rejected. Applicant notified.' });
+  return htmlResponse(true, 'Request rejected. Applicant notified.');
 }
 
 // Shared approval logic (link click + email reply both use this)
@@ -802,4 +829,34 @@ function handleGetStudentDetail(e) {
 function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── HTML RESPONSE (for approval button clicks) ────────────
+// Returns a minimal, self-closing page so the approver is NOT
+// taken to the portal — just a quick confirmation.
+function htmlResponse(success, message) {
+  const color = success ? '#22C55E' : '#EF4444';
+  const icon = success ? '&#10003;' : '&#10007;';
+  const title = success ? 'Response Recorded' : 'Something Went Wrong';
+  const html =
+    '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>PW Portal</title>' +
+    '<style>' +
+      'body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#0A0A0B;color:#F5F5F7;display:flex;align-items:center;justify-content:center;min-height:100vh}' +
+      '.card{background:#151518;border:1px solid #26262B;border-radius:14px;padding:40px;text-align:center;max-width:360px;box-shadow:0 12px 28px rgba(0,0,0,.6)}' +
+      '.icon{font-size:48px;color:' + color + '}' +
+      '.title{font-size:20px;font-weight:800;margin-top:12px}' +
+      '.msg{font-size:14px;color:#A1A1AA;margin-top:8px;line-height:1.5}' +
+      '.close{display:inline-block;margin-top:20px;background:linear-gradient(135deg,#EF4444,#B91C1C);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}' +
+    '</style></head><body>' +
+      '<div class="card">' +
+        '<div class="icon">' + icon + '</div>' +
+        '<div class="title">' + title + '</div>' +
+        '<div class="msg">' + message + '</div>' +
+        '<button class="close" onclick="window.close()">Close</button>' +
+      '</div>' +
+      '<script>setTimeout(function(){try{window.close();}catch(e){}},2500);</script>' +
+    '</body></html>';
+  return HtmlService.createHtmlOutput(html);
 }
