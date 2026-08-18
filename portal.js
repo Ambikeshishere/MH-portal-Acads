@@ -42,7 +42,14 @@ function navigate(view) {
 // ── API HELPERS ────────────────────────────────────
 function apiGet(action, params = {}) {
   const qs = new URLSearchParams({ action, ...params }).toString();
-  return fetch(`${API_BASE}?${qs}`).then(r => r.json());
+  return fetch(`${API_BASE}?${qs}`).then(r => r.text()).then(parseApiResponse)
+    .catch(err => {
+      if (err && err.message === 'HTML_RESPONSE') {
+        // Retry once — Apps Script redirect usually resolves on 2nd call
+        return fetch(`${API_BASE}?${qs}`).then(r => r.text()).then(parseApiResponse);
+      }
+      throw err;
+    });
 }
 
 function apiPost(action, body) {
@@ -50,7 +57,28 @@ function apiPost(action, body) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...body })
-  }).then(r => r.json());
+  }).then(r => r.text()).then(parseApiResponse)
+    .catch(err => {
+      if (err && err.message === 'HTML_RESPONSE') {
+        return fetch(API_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, ...body })
+        }).then(r => r.text()).then(parseApiResponse);
+      }
+      throw err;
+    });
+}
+
+// Apps Script web apps sometimes return an HTML interstitial page on the
+// first request (302 redirect). Retry once, and parse JSON if possible.
+function parseApiResponse(text) {
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    // HTML page returned — retry the same request once
+    throw new Error('HTML_RESPONSE');
+  }
 }
 
 function showLoading() { document.getElementById('loadingOverlay').style.display = 'flex'; }
@@ -209,7 +237,7 @@ async function handleSignup(e) {
   btn.querySelector('span').textContent = 'Submitting...';
 
   try {
-    const resp = await apiPost('signup', { email, centers: centers.join(', '), role, password });
+    const resp = await apiGet('signup', { email, centers: centers.join(', '), role, password });
     if (resp.success) {
       document.getElementById('signupSuccess').textContent = resp.message;
       document.getElementById('signupSuccess').classList.add('show');

@@ -214,13 +214,22 @@ function handleSignup(e) {
   if (findUser(email))
     return json({ success: false, message: 'This email is already registered. Please login.' });
 
-  // Determine approver role & find an approver email
+  // Determine approver role & find an approver email.
+  // If NO approver exists for the role (or approver email is invalid),
+  // fall back to the Admin (ambikesh.srivastava@pw.live).
   const approverRole = APPROVER_MAP[role] || 'Admin';
   let approverEmail = ADMIN_EMAIL;
   const idRole = getSheet('ID-Role');
   for (const r of rows(idRole)) {
-    if (col(r, 2) === approverRole) { approverEmail = col(r, 0).toLowerCase(); break; }
+    if (col(r, 2) === approverRole) {
+      const candidate = col(r, 0).toLowerCase();
+      if (candidate && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidate)) {
+        approverEmail = candidate;
+        break;
+      }
+    }
   }
+  // approverEmail now defaults to ADMIN_EMAIL if no valid approver was found
 
   // Create approval request
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
