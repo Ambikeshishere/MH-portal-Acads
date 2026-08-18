@@ -291,7 +291,7 @@ body {
 .topnav-title { display: block; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: white; letter-spacing: -0.2px; }
 .topnav-subtitle { display: block; font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 500; margin-top: 1px; }
 
-.topnav-links { display: flex; gap: 4px; }
+.topnav-links { display: none; }
 
 .topnav-link {
   display: flex; align-items: center; gap: 8px; padding: 9px 16px;
@@ -367,9 +367,9 @@ body {
 }
 .btn-logout:hover { background: rgba(225,29,72,0.2); color: #FB7185; border-color: rgba(225,29,72,0.4); }
 
-/* ── MOBILE BOTTOM NAV ──────────────────────────── */
+/* ── BOTTOM NAV (primary navigation, all devices) ── */
 .mobile-nav {
-  display: none;
+  display: flex;
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
   background: var(--pw-glass);
   border-top: 1px solid var(--pw-border);
@@ -387,7 +387,7 @@ body {
 .mobile-nav-link.active { color: var(--pw-red-bright); background: rgba(225,29,72,0.1); }
 
 /* ── MAIN CONTENT ───────────────────────────────── */
-.main-content { flex: 1; min-height: calc(100vh - var(--topnav-height)); }
+.main-content { flex: 1; min-height: calc(100vh - var(--topnav-height)); padding-bottom: 84px; }
 
 .content-area { padding: 24px 28px; }
 .view { display: none; }
@@ -616,9 +616,6 @@ body {
 
 @media (max-width: 768px) {
   .topnav { padding: 0 12px; height: 60px; }
-  .topnav-links { display: none; } /* replaced by bottom nav */
-  .mobile-nav { display: flex; }
-  .main-content { padding-bottom: 76px; }
   .topnav-subtitle { display: none; }
   .btn-change-center span { display: none; }
   .btn-change-center { padding: 8px 10px; }
