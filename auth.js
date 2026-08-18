@@ -147,6 +147,7 @@ async function handleSignup(e) {
   const password = document.getElementById('signupPassword').value.trim();
 
   if (!email) { showError('signupError', 'MAIL ID required'); return; }
+  if (!email.endsWith('@pw.live')) { showError('signupError', 'Only @pw.live emails can sign up'); return; }
   if (!pwid) { showError('signupError', 'PWID required'); return; }
   if (!center) { showError('signupError', 'Select a center'); return; }
   if (!role) { showError('signupError', 'Select a role'); return; }

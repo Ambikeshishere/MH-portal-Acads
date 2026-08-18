@@ -199,6 +199,8 @@ function handleSignup(e) {
 
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     return json({ success: false, message: 'Valid email required' });
+  if (!email.endsWith('@pw.live'))
+    return json({ success: false, message: 'Only @pw.live emails can sign up' });
   if (!pwid)
     return json({ success: false, message: 'PWID required' });
   if (!password || password.length < 4)
@@ -322,7 +324,7 @@ function processApproval(token, newStatus, userMessage) {
     // Create user in ID-Role sheet
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const idRole = ss.getSheetByName('ID-Role');
-    idRole.appendRow([req.email, req.center, req.role, '', '', '', '', req.password || DEFAULT_PASSWORD, '', '', '']);
+    idRole.appendRow([req.email, req.center, req.role, req.pwid, '', '', '', req.password || DEFAULT_PASSWORD, '', '', '']);
     req.sheet.getRange(req.index + 1, 7).setValue('Approved');
     req.sheet.getRange(req.index + 1, 10).setValue(new Date());
     try {
