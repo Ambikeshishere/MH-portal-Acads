@@ -150,24 +150,22 @@ function computeHome(filters) {
   const centers = filters.centers && filters.centers.length ? filters.centers : allCenters();
   const centerSet = new Set(centers);
 
-  // 1) Accessible batches (batch → center in selected centers)
+  // 1) batch → center mapping from FBM (ONLY for center scoping).
+  //    FBM is NOT used for batch/student counts — only to know which
+  //    faculty teaches which subject in which batch.
   const batchCenter = {};
-  const accBatches = new Set();
-  DATA.fbm.forEach(r => {
-    const b = r.Batch, c = r.Center;
-    if (!b) return;
-    if (!batchCenter[b]) batchCenter[b] = c;
-    if (centerSet.has(c)) accBatches.add(b);
-  });
+  DATA.fbm.forEach(r => { if (r.Batch && !batchCenter[r.Batch]) batchCenter[r.Batch] = r.Center; });
 
-  // 2) Accessible students (regno whose batch is in scope)
+  // 2) Accessible batches + students come from the STUDENTS sheet.
+  //    Batch count and student count are driven by enrolled students.
   const studentBatch = {};
+  const accBatches = new Set();
   const accStudents = new Set();
   DATA.students.forEach(r => {
     const reg = r.regno, b = r.batch;
     if (!reg) return;
     studentBatch[reg] = b;
-    if (accBatches.has(b)) accStudents.add(reg);
+    if (b && centerSet.has(batchCenter[b])) { accBatches.add(b); accStudents.add(reg); }
   });
 
   // 3) Faculty in scope
