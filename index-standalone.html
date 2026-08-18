@@ -828,9 +828,15 @@ function initApp() {
 
 function setupCenterSwitcher() {
   const switcher = document.getElementById('centerSwitcher');
+  // ADMIN / RAH / RAOM (level >= 5): ALWAYS see all centers, no matter what
+  // they select. The backend ignores the center filter for these levels, so
+  // the switcher is shown for context but never restricts the data.
+  if (user.level >= 5) {
+    switcher.style.display = 'flex';
+    loadAllCentersForSwitcher();
+    return;
+  }
   const centers = user.centers && user.centers.length ? user.centers : (user.center ? user.center.split(',') : []);
-  // RAH / RAOM / Admin (level >= 5) see the whole region — no center switcher needed
-  if (user.level >= 5) { switcher.style.display = 'none'; return; }
   if (centers.length > 1) {
     switcher.style.display = 'flex';
     // Ensure user.center holds the comma-separated selected centers
@@ -839,6 +845,19 @@ function setupCenterSwitcher() {
   } else {
     switcher.style.display = 'none';
   }
+}
+
+// For level >= 5, populate the switcher with ALL available centers so the
+// user can see/select them, but the backend always returns the whole region.
+async function loadAllCentersForSwitcher() {
+  try {
+    const resp = await apiGet('getSignupOptions');
+    if (resp.success) {
+      user.centers = resp.data.centers;
+      user.center = resp.data.centers.join(',');
+      renderCenterCheckboxes(resp.data.centers);
+    }
+  } catch (_) {}
 }
 
 function renderCenterCheckboxes(centers) {
@@ -863,6 +882,8 @@ function onCenterToggle() {
 
 function updateCenterBtnLabel(selected) {
   const label = document.getElementById('centerBtnLabel');
+  // ADMIN / RAH / RAOM always see the whole region — label stays "All Centers"
+  if (user.level >= 5) { label.textContent = 'All Centers'; return; }
   const total = (user.centers || []).length;
   if (selected.length >= total) label.textContent = 'All Centers';
   else if (selected.length === 1) label.textContent = selected[0];
