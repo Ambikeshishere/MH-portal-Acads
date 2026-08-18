@@ -6,7 +6,7 @@ const ADMIN_EMAIL = 'ambikesh.srivastava@pw.live';
 
 const HIERARCHY = {
   'Admin': 7, 'RAH': 6, 'RAOM': 5, 'CH/ACH': 4,
-  'AOM': 3, 'Subject Head': 2, 'Faculty': 1
+  'JEE Head': 4, 'NEET Head': 4, 'AOM': 3, 'Subject Head': 2, 'Faculty': 1
 };
 
 // Who approves a signup for each role (next level up)
@@ -15,12 +15,14 @@ const APPROVER_MAP = {
   'Subject Head': 'AOM',
   'AOM': 'CH/ACH',
   'CH/ACH': 'RAOM',
+  'JEE Head': 'RAOM',
+  'NEET Head': 'RAOM',
   'RAOM': 'RAH',
   'RAH': 'Admin'
 };
 
 // Roles allowed to sign up via the portal
-const SIGNUP_ROLES = ['Faculty', 'Subject Head', 'AOM', 'CH/ACH', 'RAOM', 'RAH'];
+const SIGNUP_ROLES = ['Faculty', 'Subject Head', 'AOM', 'CH/ACH', 'RAOM', 'RAH', 'JEE Head', 'NEET Head'];
 
 // ── ROUTER ────────────────────────────────────────────────
 function doGet(e) {
@@ -41,6 +43,9 @@ function doGet(e) {
       case 'approveRequest':       return handleApproveRequest(e);
       case 'rejectRequest':        return handleRejectRequest(e);
       case 'getApprovalStatus':    return handleGetApprovalStatus(e);
+      case 'requestCenterChange':  return handleRequestCenterChange(e);
+      case 'approveCenterChange':  return handleApproveCenterChange(e);
+      case 'rejectCenterChange':   return handleRejectCenterChange(e);
       default:                     return json({ success: false, message: 'Invalid action' });
     }
   } catch (err) {
@@ -62,6 +67,9 @@ function doPost(e) {
 }
 
 // ── AUTH: FIND USER ───────────────────────────────────────
+// Login identity (email OR PWID) is resolved from the ID-Role sheet only.
+// FBM is NOT used for authentication — it is only used to map a Faculty
+// to their batches/subjects so they see only their own students.
 function findUser(identifier) {
   const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sheet = ss.getSheetByName('ID-Role');
@@ -69,28 +77,25 @@ function findUser(identifier) {
   const q     = String(identifier || '').trim().toLowerCase();
   if (!q) return null;
 
-  // 1) Try email in ID-Role
+  // 1) Try email in ID-Role (column A)
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === q) {
       return { sheet, data, index: i, email: String(data[i][0]).trim(),
                centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
+               pwid: String(data[i][3] || '').trim(),
                password: String(data[i][7] || '').trim(),
                otp: String(data[i][10] || '').trim() };
     }
   }
-  // 2) Try PWID via FBM → email → ID-Role
-  const fbm = ss.getSheetByName('FBM').getDataRange().getValues();
-  for (let f = 1; f < fbm.length; f++) {
-    if (String(fbm[f][2]).trim().toUpperCase() === String(identifier).trim().toUpperCase()) {
-      const linkedEmail = String(fbm[f][3]).trim().toLowerCase();
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]).trim().toLowerCase() === linkedEmail) {
-          return { sheet, data, index: i, email: String(data[i][0]).trim(),
-                   centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
-                   password: String(data[i][7] || '').trim(),
-                   otp: String(data[i][10] || '').trim() };
-        }
-      }
+  // 2) Try PWID in ID-Role (column D)
+  const qUpper = String(identifier).trim().toUpperCase();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][3]).trim().toUpperCase() === qUpper) {
+      return { sheet, data, index: i, email: String(data[i][0]).trim(),
+               centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
+               pwid: String(data[i][3] || '').trim(),
+               password: String(data[i][7] || '').trim(),
+               otp: String(data[i][10] || '').trim() };
     }
   }
   return null;
@@ -394,6 +399,148 @@ function handleGetApprovalStatus(e) {
   return json({ success: true, data: { requests: requests } });
 }
 
+// ── CENTER CHANGE REQUEST ────────────────────────────────
+// A logged-in user can request to change/expand their accessible center(s).
+// The request goes through approval, then ID-Role column B is updated.
+function handleRequestCenterChange(e) {
+  const email = String(e.parameter.email || '').trim().toLowerCase();
+  const newCenter = String(e.parameter.newCenter || '').trim();
+  if (!email) return json({ success: false, message: 'Email required' });
+  if (!newCenter) return json({ success: false, message: 'New center(s) required' });
+
+  const user = findUser(email);
+  if (!user) return json({ success: false, message: 'User not found' });
+
+  const oldCenter = user.centerRaw;
+  const newCenters = newCenter.split(',').map(s => s.trim()).filter(Boolean);
+  if (newCenters.length === 0) return json({ success: false, message: 'New center(s) required' });
+
+  // Determine approver (next level up), fall back to Admin
+  const approverRole = APPROVER_MAP[user.role] || 'Admin';
+  let approverEmail = ADMIN_EMAIL;
+  const idRole = getSheet('ID-Role');
+  for (const r of rows(idRole)) {
+    if (col(r, 2) === approverRole) {
+      const candidate = col(r, 0).toLowerCase();
+      if (candidate && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidate)) { approverEmail = candidate; break; }
+    }
+  }
+
+  // Create request in CenterChanges sheet
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let ccSheet = ss.getSheetByName('CenterChanges');
+  if (!ccSheet) {
+    ccSheet = ss.insertSheet('CenterChanges');
+    ccSheet.appendRow(['Request ID', 'Email', 'Old Center', 'New Center', 'Status', 'Approver Email', 'Created At', 'Processed At', 'Token']);
+  }
+  const requestId = 'CC-' + Utilities.getUuid().substring(0, 6).toUpperCase();
+  const token = Utilities.getUuid().replace(/-/g, '').substring(0, 12).toUpperCase();
+  const now = new Date();
+  ccSheet.appendRow([requestId, email, oldCenter, newCenters.join(', '), 'Pending', approverEmail, now, '', token]);
+
+  // Send approval email with buttons
+  const baseUrl = ScriptApp.getService().getUrl();
+  const approveUrl = baseUrl + '?action=approveCenterChange&token=' + token;
+  const rejectUrl = baseUrl + '?action=rejectCenterChange&token=' + token;
+  const subject = 'PW Portal Center Change Request [' + requestId + ']';
+  const body =
+    'A center change request is waiting for your approval.\n\n' +
+    'Request ID: ' + requestId + '\n' +
+    'Email: ' + email + '\n' +
+    'Role: ' + user.role + '\n' +
+    'Old Center: ' + oldCenter + '\n' +
+    'New Center: ' + newCenters.join(', ') + '\n\n' +
+    'Approve or reject using the buttons in the email.\n' +
+    'TOKEN:' + token;
+  const htmlBody =
+    '<div style="font-family:Arial,Helvetica,sans-serif;background:#0A0A0B;padding:24px;color:#F5F5F7">' +
+      '<div style="max-width:520px;margin:0 auto;background:#151518;border:1px solid #26262B;border-radius:14px;overflow:hidden">' +
+        '<div style="background:linear-gradient(135deg,#EF4444,#B91C1C);padding:20px 24px;text-align:center">' +
+          '<div style="font-size:20px;font-weight:800;color:#fff">PW Portal — Center Change</div>' +
+          '<div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px">Request ' + requestId + '</div>' +
+        '</div>' +
+        '<div style="padding:24px">' +
+          '<p style="margin:0 0 16px;font-size:14px;color:#A1A1AA">A center change request is waiting for your approval.</p>' +
+          '<table style="width:100%;font-size:13px;color:#A1A1AA;border-collapse:collapse">' +
+            '<tr><td style="padding:6px 0;color:#71717A">Email</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + email + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">Role</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + user.role + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">Old Center</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + oldCenter + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">New Center</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + newCenters.join(', ') + '</td></tr>' +
+          '</table>' +
+          '<div style="margin-top:24px;text-align:center">' +
+            '<a href="' + approveUrl + '" style="display:inline-block;background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 32px;border-radius:8px;margin:0 6px">&#10003; Approve</a>' +
+            '<a href="' + rejectUrl + '" style="display:inline-block;background:linear-gradient(135deg,#EF4444,#B91C1C);color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 32px;border-radius:8px;margin:0 6px">&#10007; Reject</a>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  try {
+    MailApp.sendEmail({ to: approverEmail, subject: subject, body: body, htmlBody: htmlBody });
+  } catch (err) {
+    return json({ success: false, message: 'Failed to notify approver: ' + err });
+  }
+
+  return json({ success: true, message: 'Center change request submitted. Approval email sent to ' + approverEmail,
+                data: { requestId: requestId, approverEmail: approverEmail } });
+}
+
+function findCenterChangeByToken(token) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName('CenterChanges');
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getValues();
+  const q = String(token || '').trim().toUpperCase();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][8]).trim().toUpperCase() === q) {
+      return { sheet, data, index: i, requestId: String(data[i][0]), email: String(data[i][1]),
+               oldCenter: String(data[i][2]), newCenter: String(data[i][3]), status: String(data[i][4]) };
+    }
+  }
+  return null;
+}
+
+function handleApproveCenterChange(e) {
+  const req = findCenterChangeByToken(e.parameter.token);
+  if (!req) return htmlResponse(false, 'Invalid token');
+  if (req.status !== 'Pending') return htmlResponse(false, 'Request already ' + req.status + ' (ID: ' + req.requestId + ')');
+
+  // Update ID-Role column B with the new center(s)
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const idRole = ss.getSheetByName('ID-Role');
+  const data = idRole.getDataRange().getValues();
+  const email = req.email.toLowerCase();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === email) {
+      idRole.getRange(i + 1, 2).setValue(req.newCenter);
+      break;
+    }
+  }
+  req.sheet.getRange(req.index + 1, 5).setValue('Approved');
+  req.sheet.getRange(req.index + 1, 8).setValue(new Date());
+  try {
+    MailApp.sendEmail({ to: req.email,
+      subject: 'PW Portal — Center Change Approved',
+      body: 'Your center change request (' + req.requestId + ') was approved.\n\nNew center(s): ' + req.newCenter +
+            '\n\nPlease log out and log back in to see the updated access.' });
+  } catch (_) {}
+  return htmlResponse(true, 'Center change approved. User notified.');
+}
+
+function handleRejectCenterChange(e) {
+  const req = findCenterChangeByToken(e.parameter.token);
+  if (!req) return htmlResponse(false, 'Invalid token');
+  if (req.status !== 'Pending') return htmlResponse(false, 'Request already ' + req.status + ' (ID: ' + req.requestId + ')');
+  req.sheet.getRange(req.index + 1, 5).setValue('Rejected');
+  req.sheet.getRange(req.index + 1, 8).setValue(new Date());
+  try {
+    MailApp.sendEmail({ to: req.email,
+      subject: 'PW Portal — Center Change Rejected',
+      body: 'Your center change request (' + req.requestId + ') was rejected. Please contact your admin.' });
+  } catch (_) {}
+  return htmlResponse(true, 'Center change rejected. User notified.');
+}
+
 // ── HELPERS ───────────────────────────────────────────────
 function getSheet(name) {
   return SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name).getDataRange().getValues();
@@ -422,8 +569,8 @@ function handleGetDashboard(e) {
   const filtered = rows(fbm).filter(r => {
     const subj = col(r, 1);
     if (subj === 'Cancelled') return false;
-    if (level >= 7) return true;                              // Admin — all
-    if (level >= 2) return inCenters(col(r, 4), centers);     // Center filter (multi)
+    if (level >= 5) return true;                              // Admin, RAH, RAOM — whole region
+    if (level >= 2) return inCenters(col(r, 4), centers);     // CH/ACH, JEE/NEET Head, AOM, SubjHead — selected centers
     return col(r, 3).toLowerCase() === email;                 // Faculty — own only
   });
 
@@ -469,7 +616,7 @@ function handleGetBatches(e) {
   const filtered = rows(fbm).filter(r => {
     const subj = col(r, 1);
     if (subj === 'Cancelled') return false;
-    if (level >= 7) return true;
+    if (level >= 5) return true;
     if (level >= 2) return inCenters(col(r, 4), centers);
     return col(r, 3).toLowerCase() === email;
   });
@@ -620,7 +767,7 @@ function handleGetFaculty(e) {
 
   const filtered = rows(fbm).filter(r => {
     if (col(r, 1) === 'Cancelled') return false;
-    if (level >= 7) return true;
+    if (level >= 5) return true;
     if (level >= 2) return inCenters(col(r, 4), centers);
     return col(r, 3).toLowerCase() === email;
   });
@@ -704,7 +851,7 @@ function handleGetStudents(e) {
   const accBatches = new Set();
   rows(fbm).forEach(r => {
     if (col(r, 1) === 'Cancelled') return;
-    if (level >= 7) { accBatches.add(col(r, 0)); return; }
+    if (level >= 5) { accBatches.add(col(r, 0)); return; }
     if (level >= 2 && inCenters(col(r, 4), centers)) { accBatches.add(col(r, 0)); return; }
     if (col(r, 3).toLowerCase() === email) accBatches.add(col(r, 0));
   });

@@ -12,11 +12,13 @@
 <body>
 
   <!--
-    HTML is split into partial files (screen-login.html, screen-forgot.html,
-    screen-signup.html, screen-app.html, overlay.html) and injected here by
-    loader.js. Each placeholder below receives one partial.
+    STANDALONE BUILD — all HTML partials and JS are inlined below.
+    No fetch() / loader.js needed; works from file:// or any host.
+    Regenerate with: python3 /tmp/build_standalone.py
   -->
-  <!-- ============================================================
+
+  <!-- ===== screen-login.html (inlined) ===== -->
+<!-- ============================================================
      screen-login.html — LOGIN SCREEN
      Loaded into #screen-login by loader.js
      ============================================================ -->
@@ -71,7 +73,8 @@
     </div>
   </div>
 </div>
-  <!-- ============================================================
+  <!-- ===== screen-forgot.html (inlined) ===== -->
+<!-- ============================================================
      screen-forgot.html — FORGOT PASSWORD SCREEN
      Loaded into #screen-forgot by loader.js
      ============================================================ -->
@@ -123,7 +126,8 @@
     </div>
   </div>
 </div>
-  <!-- ============================================================
+  <!-- ===== screen-signup.html (inlined) ===== -->
+<!-- ============================================================
      screen-signup.html — SIGNUP SCREEN
      Fields: MAIL ID, PWID, CENTER (dropdown), ROLE, Password
      Loaded into #screen-signup by loader.js
@@ -193,7 +197,8 @@
     </div>
   </div>
 </div>
-  <!-- ============================================================
+  <!-- ===== screen-app.html (inlined) ===== -->
+<!-- ============================================================
      screen-app.html — MAIN APP SCREEN
      Top navbar + all views (dashboard, batches, batchDetail,
      faculty, students, studentDetail).
@@ -229,8 +234,25 @@
     </nav>
     <div class="topnav-right">
       <div class="center-switcher" id="centerSwitcher" style="display:none">
-        <select id="centerSelect" onchange="switchCenter()"></select>
+        <button type="button" class="center-btn" id="centerBtn" onclick="toggleCenterDropdown()">
+          <span id="centerBtnLabel">Centers</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="center-dropdown" id="centerDropdown" style="display:none">
+          <div class="center-dd-header">
+            <span>Select Centers</span>
+            <div class="center-dd-actions">
+              <button type="button" onclick="selectAllCenters()">All</button>
+              <button type="button" onclick="clearCenters()">Clear</button>
+            </div>
+          </div>
+          <div class="center-dd-list" id="centerCheckboxList"></div>
+        </div>
       </div>
+      <button class="btn-change-center" id="changeCenterBtn" onclick="openCenterChange()" title="Request Center Change">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/><polyline points="21 3 21 9 15 9"/></svg>
+        <span>Change Center</span>
+      </button>
       <div class="topnav-user">
         <div class="user-avatar" id="userAvatar">A</div>
         <div class="topnav-user-info">
@@ -243,6 +265,26 @@
       </button>
     </div>
   </header>
+
+  <!-- CENTER CHANGE MODAL -->
+  <div class="modal-overlay" id="centerChangeModal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Request Center Change</h3>
+        <button type="button" class="modal-close" onclick="closeCenterChange()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="cc-current">Current center(s): <strong id="ccCurrentCenter"></strong></p>
+        <label class="cc-label">Select new center(s) — you can pick multiple</label>
+        <div class="cc-center-list" id="ccCenterList"></div>
+        <div class="cc-message" id="ccMessage"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="closeCenterChange()">Cancel</button>
+        <button type="button" class="btn-submit" id="ccSubmitBtn" onclick="submitCenterChange()">Submit Request</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Content -->
   <main class="main-content">
@@ -387,10 +429,18 @@
 
   </main>
 </div>
-  <div id="screen-overlay"></div>
-
-  <!-- Load order matters: loader first, then core, then feature modules -->
-                <script>
+  <!-- ===== overlay.html (inlined) ===== -->
+<!-- ============================================================
+     overlay.html — LOADING OVERLAY
+     Loaded into #screen-overlay by loader.js
+     ============================================================ -->
+<div id="loadingOverlay" class="loading-overlay" style="display:none">
+  <div class="loader">
+    <div class="loader-spinner"></div>
+    <p>Loading data...</p>
+  </div>
+</div>
+  <script>
 /* ===== core.js ===== */
 // ============================================================
 //  PW Maharashtra Region — Faculty Performance Portal
@@ -541,7 +591,6 @@ document.addEventListener('pw:html-ready', () => {
     localStorage.removeItem('pw_user');
   }
 });
-
 /* ===== auth.js ===== */
 // ============================================================
 //  auth.js — Login, Forgot Password, Signup, Logout, initApp,
@@ -737,26 +786,123 @@ function initApp() {
 }
 
 function setupCenterSwitcher() {
-  const centers = user.centers && user.centers.length ? user.centers : (user.center ? [user.center] : []);
   const switcher = document.getElementById('centerSwitcher');
-  const sel = document.getElementById('centerSelect');
+  const centers = user.centers && user.centers.length ? user.centers : (user.center ? user.center.split(',') : []);
+  // RAH / RAOM / Admin (level >= 5) see the whole region — no center switcher needed
+  if (user.level >= 5) { switcher.style.display = 'none'; return; }
   if (centers.length > 1) {
     switcher.style.display = 'flex';
-    sel.innerHTML = centers.map(c => '<option value="' + esc(c) + '"' + (c === user.center ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+    // Ensure user.center holds the comma-separated selected centers
+    if (!user.center || user.center === '') user.center = centers.join(',');
+    renderCenterCheckboxes(centers);
   } else {
     switcher.style.display = 'none';
   }
 }
 
-function switchCenter() {
-  user.center = document.getElementById('centerSelect').value;
+function renderCenterCheckboxes(centers) {
+  const list = document.getElementById('centerCheckboxList');
+  const selected = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
+  list.innerHTML = centers.map(c => {
+    const checked = selected.includes(c) ? 'checked' : '';
+    return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + ' onchange="onCenterToggle()"> <span>' + esc(c) + '</span></label>';
+  }).join('');
+  updateCenterBtnLabel(selected);
+}
+
+function onCenterToggle() {
+  let selected = [];
+  document.querySelectorAll('#centerCheckboxList input:checked').forEach(i => selected.push(i.value));
+  if (selected.length === 0) selected = (user.centers || []).slice(); // empty = all
+  user.center = selected.join(',');
   localStorage.setItem('pw_user', JSON.stringify(user));
-  // Reload all data for the new center
+  updateCenterBtnLabel(selected);
+  reloadAllData();
+}
+
+function updateCenterBtnLabel(selected) {
+  const label = document.getElementById('centerBtnLabel');
+  const total = (user.centers || []).length;
+  if (selected.length >= total) label.textContent = 'All Centers';
+  else if (selected.length === 1) label.textContent = selected[0];
+  else label.textContent = selected.length + ' Centers';
+}
+
+function toggleCenterDropdown() {
+  const dd = document.getElementById('centerDropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function selectAllCenters() {
+  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = true);
+  onCenterToggle();
+}
+
+function clearCenters() {
+  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = false);
+  onCenterToggle();
+}
+
+function reloadAllData() {
   dashData = null;
   batchesData = [];
   facultyData = [];
   studentsData = [];
-  navigate('dashboard');
+  navigate(currentView);
+}
+
+// ── CENTER CHANGE REQUEST ─────────────────────────────
+async function openCenterChange() {
+  hideAlert('ccMessage');
+  document.getElementById('ccMessage').classList.remove('show');
+  document.getElementById('ccCurrentCenter').textContent = (user.center || user.centers || []).join(', ') || '—';
+  document.getElementById('centerChangeModal').style.display = 'flex';
+  document.getElementById('ccSubmitBtn').disabled = false;
+  document.getElementById('ccSubmitBtn').textContent = 'Submit Request';
+  try {
+    const resp = await apiGet('getSignupOptions');
+    if (resp.success) {
+      const current = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
+      document.getElementById('ccCenterList').innerHTML = resp.data.centers.map(c => {
+        const checked = current.includes(c) ? 'checked' : '';
+        return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + '> <span>' + esc(c) + '</span></label>';
+      }).join('');
+    }
+  } catch (_) {}
+}
+
+function closeCenterChange() {
+  document.getElementById('centerChangeModal').style.display = 'none';
+}
+
+async function submitCenterChange() {
+  const selected = [];
+  document.querySelectorAll('#ccCenterList input:checked').forEach(i => selected.push(i.value));
+  const msgEl = document.getElementById('ccMessage');
+  msgEl.classList.remove('error');
+  if (selected.length === 0) { showError('ccMessage', 'Select at least one center'); msgEl.classList.add('error'); return; }
+  const btn = document.getElementById('ccSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  try {
+    const resp = await apiGet('requestCenterChange', { email: user.email, newCenter: selected.join(',') });
+    if (resp.success) {
+      msgEl.textContent = resp.message;
+      msgEl.classList.add('show');
+      document.getElementById('ccCenterList').innerHTML = '';
+      btn.textContent = 'Submitted';
+    } else {
+      showError('ccMessage', resp.message);
+      msgEl.classList.add('error');
+      btn.disabled = false;
+      btn.textContent = 'Submit Request';
+    }
+  } catch (_) {
+    showError('ccMessage', 'Connection error');
+    msgEl.classList.add('error');
+    btn.disabled = false;
+    btn.textContent = 'Submit Request';
+  }
 }
 
 // ── LOGOUT ─────────────────────────────────────────
@@ -772,7 +918,6 @@ function handleLogout() {
   document.getElementById('loginPassword').value = '';
   showScreen('loginScreen');
 }
-
 /* ===== dashboard.js ===== */
 // ============================================================
 //  dashboard.js — Dashboard stats, top/bottom batches, and
@@ -894,7 +1039,6 @@ async function loadBatchesForDashboard() {
     if (batchesData.length > 0) renderDashboardFromOldBackend();
   }
 }
-
 /* ===== batches.js ===== */
 // ============================================================
 //  batches.js — Batch list, filters, and batch detail view.
@@ -1078,7 +1222,6 @@ function renderBatchDetail(d) {
       </tr>
     `).join('');
 }
-
 /* ===== faculty.js ===== */
 // ============================================================
 //  faculty.js — Faculty list, filters, and rendering.
@@ -1151,7 +1294,6 @@ function renderFaculty(list) {
     </tr>
   `).join('');
 }
-
 /* ===== students.js ===== */
 // ============================================================
 //  students.js — Student list, filters, rendering, and the
@@ -1290,7 +1432,6 @@ function renderStudentDetail(d) {
       </tr>
     `).join('');
 }
-
 /* ===== perf.js ===== */
 // ============================================================
 //  perf.js — Shared performance list renderers (toppers,
@@ -1327,8 +1468,10 @@ function renderAbsentList(containerId, students) {
   `).join('');
 }
 
-// Standalone boot: partials are already inline, so fire the ready event.
+// Standalone build: all partials are already in the DOM, so fire the
+// boot event directly (loader.js is not used here).
 document.dispatchEvent(new CustomEvent('pw:html-ready'));
 </script>
 </body>
 </html>
+

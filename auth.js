@@ -192,26 +192,123 @@ function initApp() {
 }
 
 function setupCenterSwitcher() {
-  const centers = user.centers && user.centers.length ? user.centers : (user.center ? [user.center] : []);
   const switcher = document.getElementById('centerSwitcher');
-  const sel = document.getElementById('centerSelect');
+  const centers = user.centers && user.centers.length ? user.centers : (user.center ? user.center.split(',') : []);
+  // RAH / RAOM / Admin (level >= 5) see the whole region — no center switcher needed
+  if (user.level >= 5) { switcher.style.display = 'none'; return; }
   if (centers.length > 1) {
     switcher.style.display = 'flex';
-    sel.innerHTML = centers.map(c => '<option value="' + esc(c) + '"' + (c === user.center ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+    // Ensure user.center holds the comma-separated selected centers
+    if (!user.center || user.center === '') user.center = centers.join(',');
+    renderCenterCheckboxes(centers);
   } else {
     switcher.style.display = 'none';
   }
 }
 
-function switchCenter() {
-  user.center = document.getElementById('centerSelect').value;
+function renderCenterCheckboxes(centers) {
+  const list = document.getElementById('centerCheckboxList');
+  const selected = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
+  list.innerHTML = centers.map(c => {
+    const checked = selected.includes(c) ? 'checked' : '';
+    return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + ' onchange="onCenterToggle()"> <span>' + esc(c) + '</span></label>';
+  }).join('');
+  updateCenterBtnLabel(selected);
+}
+
+function onCenterToggle() {
+  let selected = [];
+  document.querySelectorAll('#centerCheckboxList input:checked').forEach(i => selected.push(i.value));
+  if (selected.length === 0) selected = (user.centers || []).slice(); // empty = all
+  user.center = selected.join(',');
   localStorage.setItem('pw_user', JSON.stringify(user));
-  // Reload all data for the new center
+  updateCenterBtnLabel(selected);
+  reloadAllData();
+}
+
+function updateCenterBtnLabel(selected) {
+  const label = document.getElementById('centerBtnLabel');
+  const total = (user.centers || []).length;
+  if (selected.length >= total) label.textContent = 'All Centers';
+  else if (selected.length === 1) label.textContent = selected[0];
+  else label.textContent = selected.length + ' Centers';
+}
+
+function toggleCenterDropdown() {
+  const dd = document.getElementById('centerDropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function selectAllCenters() {
+  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = true);
+  onCenterToggle();
+}
+
+function clearCenters() {
+  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = false);
+  onCenterToggle();
+}
+
+function reloadAllData() {
   dashData = null;
   batchesData = [];
   facultyData = [];
   studentsData = [];
-  navigate('dashboard');
+  navigate(currentView);
+}
+
+// ── CENTER CHANGE REQUEST ─────────────────────────────
+async function openCenterChange() {
+  hideAlert('ccMessage');
+  document.getElementById('ccMessage').classList.remove('show');
+  document.getElementById('ccCurrentCenter').textContent = (user.center || user.centers || []).join(', ') || '—';
+  document.getElementById('centerChangeModal').style.display = 'flex';
+  document.getElementById('ccSubmitBtn').disabled = false;
+  document.getElementById('ccSubmitBtn').textContent = 'Submit Request';
+  try {
+    const resp = await apiGet('getSignupOptions');
+    if (resp.success) {
+      const current = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
+      document.getElementById('ccCenterList').innerHTML = resp.data.centers.map(c => {
+        const checked = current.includes(c) ? 'checked' : '';
+        return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + '> <span>' + esc(c) + '</span></label>';
+      }).join('');
+    }
+  } catch (_) {}
+}
+
+function closeCenterChange() {
+  document.getElementById('centerChangeModal').style.display = 'none';
+}
+
+async function submitCenterChange() {
+  const selected = [];
+  document.querySelectorAll('#ccCenterList input:checked').forEach(i => selected.push(i.value));
+  const msgEl = document.getElementById('ccMessage');
+  msgEl.classList.remove('error');
+  if (selected.length === 0) { showError('ccMessage', 'Select at least one center'); msgEl.classList.add('error'); return; }
+  const btn = document.getElementById('ccSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  try {
+    const resp = await apiGet('requestCenterChange', { email: user.email, newCenter: selected.join(',') });
+    if (resp.success) {
+      msgEl.textContent = resp.message;
+      msgEl.classList.add('show');
+      document.getElementById('ccCenterList').innerHTML = '';
+      btn.textContent = 'Submitted';
+    } else {
+      showError('ccMessage', resp.message);
+      msgEl.classList.add('error');
+      btn.disabled = false;
+      btn.textContent = 'Submit Request';
+    }
+  } catch (_) {
+    showError('ccMessage', 'Connection error');
+    msgEl.classList.add('error');
+    btn.disabled = false;
+    btn.textContent = 'Submit Request';
+  }
 }
 
 // ── LOGOUT ─────────────────────────────────────────
