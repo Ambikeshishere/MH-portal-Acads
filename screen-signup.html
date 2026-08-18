@@ -36,9 +36,16 @@
           </div>
           <div class="input-group">
             <label>CENTER</label>
-            <select id="signupCenter">
-              <option value="">Select center...</option>
-            </select>
+            <div class="signup-center-wrap">
+              <button type="button" class="signup-center-btn" id="signupCenterBtn" onclick="toggleSignupCenterList()">
+                <span id="signupCenterLabel">Select center(s)...</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="signup-center-list" id="signupCenterList" style="display:none">
+                <label class="center-opt center-opt-all"><input type="checkbox" id="signupCenterAll" onchange="toggleAllSignupCenters(this)"> <span>Select All</span></label>
+              </div>
+            </div>
+            <div class="signup-hint">Select one or more centers (multi-select for CH/ACH, AOM, JEE/NEET Head)</div>
           </div>
           <div class="input-group">
             <label>ROLE</label>

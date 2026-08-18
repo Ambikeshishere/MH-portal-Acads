@@ -109,11 +109,12 @@ async function loadSignupOptions() {
   try {
     const resp = await apiGet('getSignupOptions');
     if (resp.success) {
-      // Populate centers dropdown (single select)
-      const centerSel = document.getElementById('signupCenter');
-      centerSel.innerHTML = '<option value="">Select center...</option>' +
-        resp.data.centers.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('') ||
-        '<option value="">No centers available</option>';
+      // Populate centers as a multi-select checkbox list
+      const list = document.getElementById('signupCenterList');
+      if (list) {
+        list.innerHTML = '<label class="center-opt center-opt-all"><input type="checkbox" id="signupCenterAll" onchange="toggleAllSignupCenters(this)"> <span>Select All</span></label>' +
+          resp.data.centers.map(c => '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '"> <span>' + esc(c) + '</span></label>').join('');
+      }
 
       // Populate roles
       const roleSel = document.getElementById('signupRole');
@@ -121,6 +122,40 @@ async function loadSignupOptions() {
         resp.data.roles.map(r => '<option value="' + esc(r) + '">' + esc(r) + '</option>').join('');
     }
   } catch (_) {}
+}
+
+// ── SIGNUP CENTER MULTI-SELECT ──────────────────────
+function toggleSignupCenterList() {
+  const list = document.getElementById('signupCenterList');
+  if (list) list.style.display = list.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleAllSignupCenters(cb) {
+  document.querySelectorAll('#signupCenterList input[value]').forEach(i => i.checked = cb.checked);
+  updateSignupCenterLabel();
+}
+
+function updateSignupCenterLabel() {
+  const sel = [...document.querySelectorAll('#signupCenterList input[value]:checked')].map(i => i.value);
+  const label = document.getElementById('signupCenterLabel');
+  const total = document.querySelectorAll('#signupCenterList input[value]').length;
+  if (!label) return;
+  if (sel.length === 0) label.textContent = 'Select center(s)...';
+  else if (sel.length === total) label.textContent = 'All Centers';
+  else if (sel.length === 1) label.textContent = sel[0];
+  else label.textContent = sel.length + ' centers selected';
+}
+
+function getSelectedSignupCenters() {
+  return [...document.querySelectorAll('#signupCenterList input[value]:checked')].map(i => i.value);
+}
+
+function resetSignupCenters() {
+  const list = document.getElementById('signupCenterList');
+  if (!list) return;
+  document.querySelectorAll('#signupCenterList input[value]').forEach(i => i.checked = false);
+  list.style.display = 'none';
+  updateSignupCenterLabel();
 }
 
 function updateRoleHint() {
@@ -142,14 +177,14 @@ async function handleSignup(e) {
   const btn = document.getElementById('signupBtn');
   const email = document.getElementById('signupEmail').value.trim();
   const pwid = document.getElementById('signupPwid').value.trim();
-  const center = document.getElementById('signupCenter').value;
+  const center = getSelectedSignupCenters().join(',');
   const role = document.getElementById('signupRole').value;
   const password = document.getElementById('signupPassword').value.trim();
 
   if (!email) { showError('signupError', 'MAIL ID required'); return; }
   if (!email.endsWith('@pw.live')) { showError('signupError', 'Only @pw.live emails can sign up'); return; }
   if (!pwid) { showError('signupError', 'PWID required'); return; }
-  if (!center) { showError('signupError', 'Select a center'); return; }
+  if (!center) { showError('signupError', 'Select at least one center'); return; }
   if (!role) { showError('signupError', 'Select a role'); return; }
   if (password.length < 4) { showError('signupError', 'Password must be at least 4 characters'); return; }
 
@@ -158,15 +193,14 @@ async function handleSignup(e) {
 
   try {
     // Send BOTH params for backward compatibility:
-    //   center  → new backend (single center dropdown)
+    //   center  → new backend (comma-separated centers)
     //   centers → old deployed backend (comma-separated list)
     const resp = await apiGet('signup', { email, pwid, center, centers: center, role, password });
     if (resp.success) {
       document.getElementById('signupSuccess').textContent = resp.message;
       document.getElementById('signupSuccess').classList.add('show');
       document.getElementById('signupForm').reset();
-      document.getElementById('signupCenter').innerHTML = '<option value="">Select center...</option>';
-      document.getElementById('signupRole').innerHTML = '<option value="">Select role...</option>';
+      resetSignupCenters();
     } else {
       showError('signupError', resp.message);
     }

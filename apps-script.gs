@@ -114,9 +114,12 @@ function handleLogin(e) {
     return json({ success: false, message: 'Invalid password' });
   }
   const centers = getCenters(user);
+  // Multi-center users (CH/ACH, AOM, JEE/NEET Head, etc.) get ALL their
+  // centers selected by default. RAH/RAOM/Admin (level >= 5) see the whole
+  // region regardless of this value.
   return json({ success: true, data: {
     email: user.email, role: user.role,
-    center: centers[0] || '', centers: centers,
+    center: centers.join(','), centers: centers,
     level: HIERARCHY[user.role] || 1, token: Utilities.getUuid()
   }});
 }
@@ -153,6 +156,29 @@ function handleResetPassword(data) {
   return json({ success: true, message: 'Password updated successfully' });
 }
 
+// ── HELPERS: APPROVER + CENTERS ───────────────────────────
+// Find the email of someone holding the given role (first match in
+// ID-Role). Falls back to the Admin if nobody holds that role.
+function findApproverEmail(approverRole) {
+  if (!approverRole) return ADMIN_EMAIL;
+  const idRole = getSheet('ID-Role');
+  for (const r of rows(idRole)) {
+    if (col(r, 2) === approverRole) {
+      const candidate = col(r, 0).toLowerCase();
+      if (candidate && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidate)) return candidate;
+    }
+  }
+  return ADMIN_EMAIL;
+}
+
+// Valid center names = those present in the FBM sheet (column E).
+function validCenters() {
+  const fbm = getSheet('FBM');
+  const set = {};
+  rows(fbm).forEach(r => { const c = col(r, 4); if (c) set[c.toLowerCase()] = c; });
+  return set;
+}
+
 // ── SIGNUP ────────────────────────────────────────────────
 function handleGetSignupOptions() {
   const fbm = getSheet('FBM');
@@ -171,7 +197,8 @@ function handleSignup(e) {
   const email = String((e.parameter && e.parameter.email) || (e.email) || '').trim().toLowerCase();
   const pwid = String((e.parameter && e.parameter.pwid) || (e.pwid) || '').trim();
   const password = String((e.parameter && e.parameter.password) || (e.password) || '').trim();
-  const center = String((e.parameter && e.parameter.center) || (e.center) || '').trim();
+  // `center` is the new param; `centers` is kept for the old deployed frontend.
+  const centerRaw = String((e.parameter && (e.parameter.center || e.parameter.centers)) || (e.center || e.centers) || '').trim();
   const role = String((e.parameter && e.parameter.role) || (e.role) || '').trim();
 
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
@@ -184,32 +211,37 @@ function handleSignup(e) {
     return json({ success: false, message: 'Password must be at least 4 characters' });
   if (!role || !SIGNUP_ROLES.includes(role))
     return json({ success: false, message: 'Invalid role selected' });
-  if (!center)
+  if (!centerRaw)
     return json({ success: false, message: 'Center required' });
 
-  // Single center (dropdown selection)
-  const centers = [center];
+  // Support one or more centers (comma-separated), each must be valid.
+  const vc = validCenters();
+  const centers = centerRaw.split(',').map(s => s.trim()).filter(Boolean);
+  for (const c of centers) {
+    if (!vc[c.toLowerCase()]) return json({ success: false, message: 'Invalid center: ' + c });
+  }
 
-  // Duplicate checks
+  // Duplicate checks (email AND PWID, both in ID-Role)
   if (findUser(email))
     return json({ success: false, message: 'This email is already registered. Please login.' });
+  if (findUser(pwid))
+    return json({ success: false, message: 'This PWID is already registered. Please login.' });
 
-  // Determine approver role & find an approver email.
-  // If NO approver exists for the role (or approver email is invalid),
-  // fall back to the Admin (ambikesh.srivastava@pw.live).
-  const approverRole = APPROVER_MAP[role] || 'Admin';
-  let approverEmail = ADMIN_EMAIL;
-  const idRole = getSheet('ID-Role');
-  for (const r of rows(idRole)) {
-    if (col(r, 2) === approverRole) {
-      const candidate = col(r, 0).toLowerCase();
-      if (candidate && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidate)) {
-        approverEmail = candidate;
-        break;
+  // No pending approval request for the same email or PWID
+  const apData = getSheet('Approvals');
+  if (apData && apData.length > 1) {
+    for (const r of rows(apData)) {
+      const st = col(r, 6).toLowerCase();
+      if (st === 'pending' &&
+          (col(r, 1).toLowerCase() === email || col(r, 2).toUpperCase() === pwid.toUpperCase())) {
+        return json({ success: false, message: 'A signup request for this email/PWID is already pending approval.' });
       }
     }
   }
-  // approverEmail now defaults to ADMIN_EMAIL if no valid approver was found
+
+  // Determine approver (next level up), fall back to Admin
+  const approverEmail = findApproverEmail(APPROVER_MAP[role] || 'Admin');
+  const centerList = centers.join(', ');
 
   // Create approval request
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -222,7 +254,7 @@ function handleSignup(e) {
   const requestId = 'REQ-' + Utilities.getUuid().substring(0, 6).toUpperCase();
   const token = Utilities.getUuid().replace(/-/g, '').substring(0, 12).toUpperCase();
   const now = new Date();
-  apSheet.appendRow([requestId, email, pwid, center, role, password,
+  apSheet.appendRow([requestId, email, pwid, centerList, role, password,
                      'Pending', approverEmail, now, '', token]);
 
   // Send email to approver with approve/reject links + reply instructions
@@ -236,7 +268,7 @@ function handleSignup(e) {
     'Request ID: ' + requestId + '\n' +
     'Name/Email: ' + email + '\n' +
     'PWID: ' + pwid + '\n' +
-    'Center: ' + center + '\n' +
+    'Center: ' + centerList + '\n' +
     'Role: ' + role + '\n\n' +
     'Approve or reject using the buttons in the email.\n' +
     'TOKEN:' + token + '\n\n' +
@@ -255,7 +287,7 @@ function handleSignup(e) {
           '<table style="width:100%;font-size:13px;color:#A1A1AA;border-collapse:collapse">' +
             '<tr><td style="padding:6px 0;color:#71717A">Email</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + email + '</td></tr>' +
             '<tr><td style="padding:6px 0;color:#71717A">PWID</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + pwid + '</td></tr>' +
-            '<tr><td style="padding:6px 0;color:#71717A">Center</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + center + '</td></tr>' +
+            '<tr><td style="padding:6px 0;color:#71717A">Center</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + centerList + '</td></tr>' +
             '<tr><td style="padding:6px 0;color:#71717A">Role</td><td style="padding:6px 0;color:#F5F5F7;text-align:right">' + role + '</td></tr>' +
           '</table>' +
           '<div style="margin-top:24px;text-align:center">' +
@@ -325,9 +357,16 @@ function processApproval(token, newStatus, userMessage) {
     return { success: false, message: 'Request already ' + req.status + ' (ID: ' + req.requestId + ')' };
   }
   if (newStatus === 'Approved') {
-    // Create user in ID-Role sheet
+    // Guard: email or PWID must not already exist in ID-Role
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const idRole = ss.getSheetByName('ID-Role');
+    const existing = findUser(req.email) || (req.pwid ? findUser(req.pwid) : null);
+    if (existing) {
+      req.sheet.getRange(req.index + 1, 7).setValue('Duplicate');
+      req.sheet.getRange(req.index + 1, 10).setValue(new Date());
+      return { success: false, message: 'Email/PWID already registered. Request marked Duplicate.' };
+    }
+    // Create user in ID-Role sheet
     idRole.appendRow([req.email, req.center, req.role, req.pwid, '', '', '', req.password || DEFAULT_PASSWORD, '', '', '']);
     req.sheet.getRange(req.index + 1, 7).setValue('Approved');
     req.sheet.getRange(req.index + 1, 10).setValue(new Date());
@@ -415,16 +454,30 @@ function handleRequestCenterChange(e) {
   const newCenters = newCenter.split(',').map(s => s.trim()).filter(Boolean);
   if (newCenters.length === 0) return json({ success: false, message: 'New center(s) required' });
 
-  // Determine approver (next level up), fall back to Admin
-  const approverRole = APPROVER_MAP[user.role] || 'Admin';
-  let approverEmail = ADMIN_EMAIL;
-  const idRole = getSheet('ID-Role');
-  for (const r of rows(idRole)) {
-    if (col(r, 2) === approverRole) {
-      const candidate = col(r, 0).toLowerCase();
-      if (candidate && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidate)) { approverEmail = candidate; break; }
+  // Validate against known centers
+  const vc = validCenters();
+  for (const c of newCenters) {
+    if (!vc[c.toLowerCase()]) return json({ success: false, message: 'Invalid center: ' + c });
+  }
+
+  // No-op check: new centers same as current
+  const cur = getCenters(user);
+  const same = cur.length === newCenters.length &&
+    newCenters.every(c => cur.some(uc => uc.toLowerCase() === c.toLowerCase()));
+  if (same) return json({ success: false, message: 'New center(s) same as current — no change needed.' });
+
+  // No pending request for this user
+  const ccSheetData = getSheet('CenterChanges');
+  if (ccSheetData && ccSheetData.length > 1) {
+    for (const r of rows(ccSheetData)) {
+      if (col(r, 4).toLowerCase() === 'pending' && col(r, 1).toLowerCase() === email) {
+        return json({ success: false, message: 'You already have a pending center change request.' });
+      }
     }
   }
+
+  // Determine approver (next level up), fall back to Admin
+  const approverEmail = findApproverEmail(APPROVER_MAP[user.role] || 'Admin');
 
   // Create request in CenterChanges sheet
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -542,8 +595,11 @@ function handleRejectCenterChange(e) {
 }
 
 // ── HELPERS ───────────────────────────────────────────────
+// Returns rows of a sheet, or [] if the sheet does not exist yet.
 function getSheet(name) {
-  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name).getDataRange().getValues();
+  const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name);
+  if (!sh) return [];
+  return sh.getDataRange().getValues();
 }
 function rows(sheet) { return sheet.slice(1); }
 function col(r, i) { return String(r[i] || '').trim(); }
