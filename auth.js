@@ -156,7 +156,10 @@ async function handleSignup(e) {
   btn.querySelector('span').textContent = 'Submitting...';
 
   try {
-    const resp = await apiGet('signup', { email, pwid, center, role, password });
+    // Send BOTH params for backward compatibility:
+    //   center  → new backend (single center dropdown)
+    //   centers → old deployed backend (comma-separated list)
+    const resp = await apiGet('signup', { email, pwid, center, centers: center, role, password });
     if (resp.success) {
       document.getElementById('signupSuccess').textContent = resp.message;
       document.getElementById('signupSuccess').classList.add('show');

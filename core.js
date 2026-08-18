@@ -133,7 +133,8 @@ function togglePass(id, btn) {
 }
 
 // ── AUTO-LOGIN ─────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+// Wait for loader.js to inject all HTML partials before booting.
+document.addEventListener('pw:html-ready', () => {
   const saved = localStorage.getItem('pw_user');
   if (saved) {
     try {

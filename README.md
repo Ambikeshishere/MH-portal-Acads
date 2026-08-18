@@ -79,6 +79,7 @@ The entire backend runs on **Google Apps Script**, meaning no server costs, no d
 - **Default password**: `Acer@1234` (for accounts with blank password field)
 - **Forgot Password flow**: OTP-based password reset via email
 - **Session persistence**: Auto-login from browser localStorage
+- **Self signup with approval**: New users sign up (MAIL ID, PWID, CENTER, ROLE) and their account is created only after an approver approves via email link or reply
 
 ---
 
@@ -87,7 +88,10 @@ The entire backend runs on **Google Apps Script**, meaning no server costs, no d
 ```
 ┌─────────────────────────┐
 │      Frontend (HTML)     │
-│   index.html + portal.js │
+│  index.html + loader.js  │
+│  + core/auth/dashboard/  │
+│  batches/faculty/students│
+│  + screen-*.html partials│
 │     + styles.css         │
 └────────────┬────────────┘
              │  fetch() API calls
@@ -103,7 +107,7 @@ The entire backend runs on **Google Apps Script**, meaning no server costs, no d
 │    Google Spreadsheet    │
 │  ┌──────┬──────┬──────┐  │
 │  │ FBM  │Students│Tests│  │
-│  │ID-Rol│       │     │  │
+│  │ID-Rol│Approvals│    │  │
 │  └──────┴──────┴──────┘  │
 └─────────────────────────┘
 ```
@@ -111,7 +115,7 @@ The entire backend runs on **Google Apps Script**, meaning no server costs, no d
 The architecture is deliberately simple:
 - **No server** — Google Apps Script runs in Google's cloud
 - **No database** — Google Sheets IS the database
-- **No build step** — plain HTML/CSS/JS, open `index.html` directly
+- **No build step** — plain HTML/CSS/JS, served over HTTP
 - **Zero hosting cost** — everything runs on Google's free tier
 
 ---
@@ -129,7 +133,7 @@ The architecture is deliberately simple:
 
 **No frameworks. No dependencies. No npm. No build tools.**
 
-Just 4 files that run anywhere a browser exists.
+Plain HTML/CSS/JS that runs anywhere a browser exists. Serve over HTTP (`python3 -m http.server`) for the partial loader.
 
 ---
 
@@ -243,7 +247,7 @@ The portal implements a 7-level hierarchy:
 
 ### Step 3: Configure the Frontend
 
-1. Open `portal.js` and find this line:
+1. Open `core.js` and find this line:
    ```javascript
    const API_BASE = 'https://script.google.com/macros/s/YOUR_URL_HERE/exec';
    ```
@@ -251,8 +255,12 @@ The portal implements a 7-level hierarchy:
 
 ### Step 4: Open the Portal
 
-1. Simply open `index.html` in any modern browser
-2. Login with your email and password (default: `Acer@1234`)
+1. Serve the folder over HTTP (required for the HTML partial loader):
+   ```bash
+   python3 -m http.server 8888
+   ```
+2. Open `http://localhost:8888` in any modern browser
+3. Login with your email and password (default: `Acer@1234`)
 
 ---
 
@@ -272,28 +280,107 @@ All endpoints use `GET` requests except password reset (uses `POST`).
 | `getFaculty` | GET | `email`, `level`, `center` | Faculty productivity data |
 | `getStudents` | GET | `email`, `level`, `center`, `batch` (optional) | Student list with scores |
 | `getStudentDetail` | GET | `regno` | Individual student test history |
+| `getSignupOptions` | GET | — | Available roles and centers for signup |
+| `signup` | GET | `email`, `pwid`, `center`, `role`, `password` | Create an approval request |
+| `getApprovalStatus` | GET | `email` | Check status of a user's approval requests |
+| `approveRequest` | GET | `token` | Approve a signup request (from email link) |
+| `rejectRequest` | GET | `token` | Reject a signup request (from email link) |
+
+---
+
+## Signup & Approval Flow
+
+New users sign up through the portal, but their account is **only created after an approver approves** the request.
+
+### Signup form fields
+- **MAIL ID** — PW email address (login identifier)
+- **PWID** — PW ID
+- **CENTER** — single center selected from a dropdown
+- **ROLE** — Faculty, Subject Head, AOM, CH/ACH, RAOM, RAH
+- **Password** — minimum 4 characters
+
+### Approval chain (next level up)
+| Signup Role | Approver |
+|-------------|----------|
+| Faculty / Subject Head | AOM |
+| AOM | CH/ACH |
+| CH/ACH | RAOM |
+| RAOM | RAH |
+| RAH | Admin |
+
+If **no approver exists** for the role in the `ID-Role` sheet, the approval email falls back to the Admin (`ambikesh.srivastava@pw.live`).
+
+### How approval works
+1. User submits the signup form → a request is created in the **Approvals** sheet (status `Pending`)
+2. An approval email is sent to the approver with **Approve** / **Reject** links and a token
+3. The approver can either:
+   - Click the **Approve** / **Reject** link in the email, **or**
+   - Reply to the email with `approve` or `reject` (scanned by the `checkApprovalReplies` time trigger)
+4. On approval, the user is created in the **ID-Role** sheet and login details are emailed to them
+5. The user can then log in with their email + password
+
+### Approvals sheet structure
+| Column | Field |
+|--------|-------|
+| A | Request ID |
+| B | Email |
+| C | PWID |
+| D | Center |
+| E | Role |
+| F | Password |
+| G | Status |
+| H | Approver Email |
+| I | Created At |
+| J | Processed At |
+| K | Token |
+
+> **Note:** Set up a time trigger for `checkApprovalReplies` (Triggers → Add Trigger → Time-driven → Every 5 minutes) to auto-process email replies.
 
 ---
 
 ## File Structure
 
+The frontend is split into **modular JS files** and **HTML partials** for clean, maintainable code. `loader.js` injects the HTML partials at runtime.
+
 ```
 MH portal Acads/
-├── apps-script.gs      # Google Apps Script backend (paste into Apps Script editor)
-├── index.html           # Main HTML portal (open in browser)
-├── portal.js            # Frontend JavaScript logic
-├── styles.css           # CSS styling with PW theme
-└── README.md            # This file
+├── apps-script.gs        # Google Apps Script backend (paste into Apps Script editor)
+├── index.html            # HTML shell: placeholders + script tags
+├── loader.js             # Loads HTML partials, fires pw:html-ready
+├── core.js               # API base, shared state, navigation, api helpers, utilities, auto-login
+├── auth.js               # Login, forgot password, signup, logout, center switcher
+├── dashboard.js          # Dashboard stats + top/bottom batches
+├── batches.js            # Batch list, filters, batch detail
+├── faculty.js            # Faculty list, filters, render
+├── students.js           # Student list, filters, render, student detail
+├── perf.js               # Shared toppers/average/bottom/absentee renderers
+├── screen-login.html     # Login screen partial
+├── screen-forgot.html    # Forgot password screen partial
+├── screen-signup.html    # Signup screen partial (MAIL ID, PWID, CENTER, ROLE)
+├── screen-app.html       # Main app screen (top navbar + all views)
+├── overlay.html          # Loading overlay partial
+├── styles.css            # CSS styling with PW theme
+└── README.md             # This file
 ```
 
 ### File Responsibilities
 
-| File | Lines | Role |
-|------|-------|------|
-| `apps-script.gs` | ~320 | Backend API: auth, data processing, role-based filtering |
-| `index.html` | ~350 | HTML structure: login, forgot password, 5 main views |
-| `portal.js` | ~420 | Frontend logic: API calls, view rendering, state management |
-| `styles.css` | ~550 | Styling: PW theme, responsive layout, animations |
+| File | Role |
+|------|------|
+| `apps-script.gs` | Backend API: auth, signup/approval, data processing, role-based filtering |
+| `index.html` | HTML shell with placeholder divs and ordered script tags |
+| `loader.js` | Fetches each `screen-*.html` partial and injects it, then fires `pw:html-ready` |
+| `core.js` | `API_BASE`, shared state, `showScreen`/`navigate`, `apiGet`/`apiPost`, utilities, auto-login |
+| `auth.js` | Login, forgot/OTP/reset, signup, `initApp`, center switcher, logout |
+| `dashboard.js` | Dashboard stats + top/bottom batch rendering |
+| `batches.js` | Batch list, filters, batch detail view |
+| `faculty.js` | Faculty list, filters, rendering |
+| `students.js` | Student list, filters, rendering, student detail |
+| `perf.js` | Shared performance list renderers (toppers, average, bottom, absentees) |
+| `screen-*.html` | One screen per file, injected by `loader.js` |
+| `styles.css` | PW theme, responsive layout, animations |
+
+> **Note:** The frontend must be served over HTTP (e.g. `python3 -m http.server 8888` or GitHub Pages) because `loader.js` uses `fetch()` to load the HTML partials. Opening `index.html` directly via `file://` will not load the partials.
 
 ---
 
@@ -343,6 +430,12 @@ The design features:
 2. Enter your email or PWID
 3. Check your email for the 6-digit OTP
 4. Enter OTP and set a new password (minimum 4 characters)
+
+### Signup & Approval
+1. Click **Sign Up** on the login screen
+2. Fill in **MAIL ID**, **PWID**, select **CENTER** from the dropdown, choose **ROLE**, and set a **Password**
+3. Submit — your request goes to your reporting manager (or the Admin if no approver exists for your role)
+4. Check your email after approval — you will receive login credentials and can sign in
 
 ---
 
