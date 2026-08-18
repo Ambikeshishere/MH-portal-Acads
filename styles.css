@@ -130,6 +130,7 @@ body {
   border-radius: 24px;
   box-shadow: 0 0 50px rgba(225,29,72,0.3);
   animation: floaty 6s ease-in-out infinite;
+  filter: brightness(0) invert(1); /* black logo -> white on dark theme */
 }
 .login-brand { text-align: center; margin-bottom: 44px; }
 .login-brand h1 {
@@ -166,7 +167,7 @@ body {
 }
 
 .login-card-logo { text-align: center; margin-bottom: 18px; }
-.pw-logo-sm-login { width: 52px; height: 52px; object-fit: contain; border-radius: 14px; }
+.pw-logo-sm-login { width: 52px; height: 52px; object-fit: contain; border-radius: 14px; filter: brightness(0) invert(1); }
 
 .login-card h2 { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--pw-text); text-align: center; letter-spacing: -0.3px; }
 .login-subtitle { color: var(--pw-text-secondary); margin: 6px 0 26px; font-size: 14px; text-align: center; }
@@ -286,7 +287,7 @@ body {
 }
 
 .topnav-left { display: flex; align-items: center; gap: 12px; }
-.topnav-logo { width: 38px; height: 38px; object-fit: contain; border-radius: 10px; box-shadow: 0 0 18px rgba(225,29,72,0.25); }
+.topnav-logo { width: 38px; height: 38px; object-fit: contain; border-radius: 10px; box-shadow: 0 0 18px rgba(225,29,72,0.25); filter: brightness(0) invert(1); }
 .topnav-title { display: block; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: white; letter-spacing: -0.2px; }
 .topnav-subtitle { display: block; font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 500; margin-top: 1px; }
 
