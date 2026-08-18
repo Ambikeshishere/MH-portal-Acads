@@ -1,0 +1,792 @@
+// ============================================================
+//  PW Maharashtra Region — Faculty Portal Backend
+//  Physics Wallah | Chhatrapati Sambhajinagar Vidyapeeth
+//  v3 — Hierarchy Login + Signup + Approval Flow
+// ============================================================
+//
+//  Sheet Structure:
+//  ────────────────────────────────────────────────────────
+//  ID-Role (A–K):
+//    A=MAIL ID, B=CENTER (comma-separated for multi-center),
+//    C=ROLE, D-G=Other, H=Password, I-J=Other, K=OTP
+//
+//  FBM (A–E):
+//    A=Batch, B=Subject, C=PWID, D=MailID, E=Center
+//
+//  Students (A–E):
+//    A=regno, B=form_status, C=newpayment_checks, D=eligibility_status, E=batch
+//
+//  Test Result (A–T):
+//    A=reg_no, B=student_name, C=joining_date, D=acad_year, E=current_batch,
+//    F=class_stream, G=test_type, H=paper_type, I=test_pattern, J=testseries,
+//    K=test_date, L=totalmarks, M=userscore, N=markspercent,
+//    O=physics, P=chemistry, Q=maths, R=zoology, S=botany, T=test_rank
+//
+//  Approvals (A–J):  [auto-created]
+//    A=Request ID, B=Email, C=Centers(CSV), D=Role, E=Password,
+//    F=Status(Pending/Approved/Rejected), G=Approver Email,
+//    H=Created At, I=Processed At, J=Token
+// ============================================================
+
+const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+const DEFAULT_PASSWORD = 'Acer@1234';
+const ADMIN_EMAIL = 'ambikesh.srivastava@pw.live';
+
+const HIERARCHY = {
+  'Admin': 7, 'RAH': 6, 'RAOM': 5, 'CH/ACH': 4,
+  'AOM': 3, 'Subject Head': 2, 'Faculty': 1
+};
+
+// Who approves a signup for each role (next level up)
+const APPROVER_MAP = {
+  'Faculty': 'AOM',
+  'Subject Head': 'AOM',
+  'AOM': 'CH/ACH',
+  'CH/ACH': 'RAOM',
+  'RAOM': 'RAH',
+  'RAH': 'Admin'
+};
+
+// Roles allowed to sign up via the portal
+const SIGNUP_ROLES = ['Faculty', 'Subject Head', 'AOM', 'CH/ACH', 'RAOM', 'RAH'];
+
+// ── ROUTER ────────────────────────────────────────────────
+function doGet(e) {
+  const action = e.parameter.action;
+  try {
+    switch (action) {
+      case 'login':                return handleLogin(e);
+      case 'forgotPassword':       return handleForgotPassword(e);
+      case 'verifyOTP':            return handleVerifyOTP(e);
+      case 'getDashboard':         return handleGetDashboard(e);
+      case 'getBatches':           return handleGetBatches(e);
+      case 'getBatchDetail':       return handleGetBatchDetail(e);
+      case 'getFaculty':           return handleGetFaculty(e);
+      case 'getStudents':          return handleGetStudents(e);
+      case 'getStudentDetail':     return handleGetStudentDetail(e);
+      case 'getSignupOptions':     return handleGetSignupOptions(e);
+      case 'signup':               return handleSignup(e);
+      case 'approveRequest':       return handleApproveRequest(e);
+      case 'rejectRequest':        return handleRejectRequest(e);
+      case 'getApprovalStatus':    return handleGetApprovalStatus(e);
+      default:                     return json({ success: false, message: 'Invalid action' });
+    }
+  } catch (err) {
+    return json({ success: false, message: err.toString() });
+  }
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    switch (data.action) {
+      case 'resetPassword': return handleResetPassword(data);
+      case 'signup':        return handleSignup(data);
+      default: return json({ success: false, message: 'Invalid action' });
+    }
+  } catch (err) {
+    return json({ success: false, message: err.toString() });
+  }
+}
+
+// ── AUTH: FIND USER ───────────────────────────────────────
+function findUser(identifier) {
+  const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName('ID-Role');
+  const data  = sheet.getDataRange().getValues();
+  const q     = String(identifier || '').trim().toLowerCase();
+  if (!q) return null;
+
+  // 1) Try email in ID-Role
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === q) {
+      return { sheet, data, index: i, email: String(data[i][0]).trim(),
+               centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
+               password: String(data[i][7] || '').trim(),
+               otp: String(data[i][10] || '').trim() };
+    }
+  }
+  // 2) Try PWID via FBM → email → ID-Role
+  const fbm = ss.getSheetByName('FBM').getDataRange().getValues();
+  for (let f = 1; f < fbm.length; f++) {
+    if (String(fbm[f][2]).trim().toUpperCase() === String(identifier).trim().toUpperCase()) {
+      const linkedEmail = String(fbm[f][3]).trim().toLowerCase();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim().toLowerCase() === linkedEmail) {
+          return { sheet, data, index: i, email: String(data[i][0]).trim(),
+                   centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
+                   password: String(data[i][7] || '').trim(),
+                   otp: String(data[i][10] || '').trim() };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function getCenters(user) {
+  return (user.centerRaw || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// ── LOGIN ─────────────────────────────────────────────────
+function handleLogin(e) {
+  const user = findUser(e.parameter.identifier);
+  if (!user) return json({ success: false, message: 'User not found' });
+  const stored = user.password || DEFAULT_PASSWORD;
+  if (stored !== String(e.parameter.password).trim()) {
+    return json({ success: false, message: 'Invalid password' });
+  }
+  const centers = getCenters(user);
+  return json({ success: true, data: {
+    email: user.email, role: user.role,
+    center: centers[0] || '', centers: centers,
+    level: HIERARCHY[user.role] || 1, token: Utilities.getUuid()
+  }});
+}
+
+// ── FORGOT PASSWORD ──────────────────────────────────────
+function handleForgotPassword(e) {
+  const user = findUser(e.parameter.identifier);
+  if (!user) return json({ success: false, message: 'User not found' });
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  user.sheet.getRange(user.index + 1, 11).setValue(otp);
+  try { MailApp.sendEmail({ to: user.email,
+    subject: 'PW Portal — Password Reset OTP',
+    body: 'Your OTP: ' + otp + '\nValid for 10 minutes.' });
+  } catch (_) {}
+  return json({ success: true, message: 'OTP sent to ' + user.email, data: { email: user.email } });
+}
+
+function handleVerifyOTP(e) {
+  const user = findUser(e.parameter.identifier);
+  if (!user) return json({ success: false, message: 'User not found' });
+  if (user.otp === String(e.parameter.otp).trim()) {
+    user.sheet.getRange(user.index + 1, 11).setValue('');
+    return json({ success: true, message: 'OTP verified' });
+  }
+  return json({ success: false, message: 'Invalid OTP' });
+}
+
+function handleResetPassword(data) {
+  const user = findUser(data.identifier);
+  if (!user) return json({ success: false, message: 'User not found' });
+  const pw = String(data.newPassword).trim();
+  if (pw.length < 4) return json({ success: false, message: 'Password too short' });
+  user.sheet.getRange(user.index + 1, 8).setValue(pw);
+  return json({ success: true, message: 'Password updated successfully' });
+}
+
+// ── SIGNUP ────────────────────────────────────────────────
+function handleGetSignupOptions() {
+  const fbm = getSheet('FBM');
+  const centers = {};
+  rows(fbm).forEach(r => {
+    const c = col(r, 4);
+    if (c) centers[c] = true;
+  });
+  return json({ success: true, data: {
+    roles: SIGNUP_ROLES,
+    centers: Object.keys(centers).sort()
+  }});
+}
+
+function handleSignup(e) {
+  const email = String((e.parameter && e.parameter.email) || (e.email) || '').trim().toLowerCase();
+  const password = String((e.parameter && e.parameter.password) || (e.password) || '').trim();
+  const centersRaw = String((e.parameter && e.parameter.centers) || (e.centers) || '').trim();
+  const role = String((e.parameter && e.parameter.role) || (e.role) || '').trim();
+
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+    return json({ success: false, message: 'Valid email required' });
+  if (!password || password.length < 4)
+    return json({ success: false, message: 'Password must be at least 4 characters' });
+  if (!role || !SIGNUP_ROLES.includes(role))
+    return json({ success: false, message: 'Invalid role selected' });
+  if (!centersRaw)
+    return json({ success: false, message: 'At least one center required' });
+
+  // Normalize centers: comma/`/` separated
+  const centers = centersRaw.split(/[,|]/).map(s => s.trim()).filter(Boolean);
+  if (centers.length === 0)
+    return json({ success: false, message: 'At least one center required' });
+
+  // Duplicate checks
+  if (findUser(email))
+    return json({ success: false, message: 'This email is already registered. Please login.' });
+
+  // Determine approver role & find an approver email
+  const approverRole = APPROVER_MAP[role] || 'Admin';
+  let approverEmail = ADMIN_EMAIL;
+  const idRole = getSheet('ID-Role');
+  for (const r of rows(idRole)) {
+    if (col(r, 2) === approverRole) { approverEmail = col(r, 0).toLowerCase(); break; }
+  }
+
+  // Create approval request
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let apSheet = ss.getSheetByName('Approvals');
+  if (!apSheet) {
+    apSheet = ss.insertSheet('Approvals');
+    apSheet.appendRow(['Request ID', 'Email', 'Centers', 'Role', 'Password',
+                       'Status', 'Approver Email', 'Created At', 'Processed At', 'Token']);
+  }
+  const requestId = 'REQ-' + Utilities.getUuid().substring(0, 6).toUpperCase();
+  const token = Utilities.getUuid().replace(/-/g, '').substring(0, 12).toUpperCase();
+  const now = new Date();
+  apSheet.appendRow([requestId, email, centers.join(', '), role, password,
+                     'Pending', approverEmail, now, '', token]);
+
+  // Send email to approver with approve/reject links + reply instructions
+  const baseUrl = ScriptApp.getService().getUrl();
+  const approveUrl = baseUrl + '?action=approveRequest&token=' + token;
+  const rejectUrl = baseUrl + '?action=rejectRequest&token=' + token;
+
+  const subject = 'PW Portal ID Approval Request [' + requestId + ']';
+  const body =
+    'A new ' + role + ' account request is waiting for your approval.\n\n' +
+    'Request ID: ' + requestId + '\n' +
+    'Name/Email: ' + email + '\n' +
+    'Centers: ' + centers.join(', ') + '\n' +
+    'Role: ' + role + '\n\n' +
+    'APPROVE: Reply to this email with "approve" or click:\n' + approveUrl + '\n\n' +
+    'REJECT: Reply with "reject" or click:\n' + rejectUrl + '\n\n' +
+    'TOKEN:' + token + '\n\n' +
+    'If you do nothing, the request stays on hold.';
+
+  try {
+    MailApp.sendEmail({ to: approverEmail, subject: subject, body: body });
+  } catch (err) {
+    return json({ success: false, message: 'Failed to notify approver: ' + err });
+  }
+
+  return json({ success: true, message: 'Signup request submitted. Approval email sent to ' + approverEmail,
+                data: { requestId: requestId, approverEmail: approverEmail } });
+}
+
+// ── APPROVAL HANDLERS ─────────────────────────────────────
+function findRequestByToken(token) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName('Approvals');
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getValues();
+  const q = String(token || '').trim().toUpperCase();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][9]).trim().toUpperCase() === q) {
+      return { sheet, data, index: i, requestId: String(data[i][0]), email: String(data[i][1]),
+               centers: String(data[i][2]), role: String(data[i][3]), password: String(data[i][4]),
+               status: String(data[i][5]) };
+    }
+  }
+  return null;
+}
+
+function handleApproveRequest(e) {
+  const token = e.parameter.token;
+  const result = processApproval(token, 'Approved', 'Your account has been approved. You can now login.');
+  return json(result);
+}
+
+function handleRejectRequest(e) {
+  const token = e.parameter.token;
+  const req = findRequestByToken(token);
+  if (!req) return json({ success: false, message: 'Invalid token' });
+  req.sheet.getRange(req.index + 1, 6).setValue('Rejected');
+  req.sheet.getRange(req.index + 1, 9).setValue(new Date());
+  try {
+    MailApp.sendEmail({ to: req.email,
+      subject: 'PW Portal — Signup Request Rejected',
+      body: 'Your signup request (' + req.requestId + ') was rejected. Please contact your admin.' });
+  } catch (_) {}
+  return json({ success: true, message: 'Request rejected. Applicant notified.' });
+}
+
+// Shared approval logic (link click + email reply both use this)
+function processApproval(token, newStatus, userMessage) {
+  const req = findRequestByToken(token);
+  if (!req) return { success: false, message: 'Invalid token' };
+  if (req.status !== 'Pending') {
+    return { success: false, message: 'Request already ' + req.status + ' (ID: ' + req.requestId + ')' };
+  }
+  if (newStatus === 'Approved') {
+    // Create user in ID-Role sheet
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const idRole = ss.getSheetByName('ID-Role');
+    idRole.appendRow([req.email, req.centers, req.role, '', '', '', '', req.password || DEFAULT_PASSWORD, '', '', '']);
+    req.sheet.getRange(req.index + 1, 6).setValue('Approved');
+    req.sheet.getRange(req.index + 1, 9).setValue(new Date());
+    try {
+      MailApp.sendEmail({ to: req.email,
+        subject: 'PW Portal — Account Approved',
+        body: userMessage + '\n\nEmail: ' + req.email + '\nPassword: ' + (req.password || DEFAULT_PASSWORD) +
+              '\n\nPlease change your password after first login.' });
+    } catch (_) {}
+    return { success: true, message: 'Account approved and created! Login details sent to ' + req.email };
+  }
+  return { success: false, message: 'Unknown status' };
+}
+
+// ── EMAIL REPLY SCANNER (run via time trigger) ────────────
+// Scans Gmail for replies containing the token + "approve"/"reject".
+// Setup: Triggers → Add Trigger → checkApprovalReplies → Time-driven → Every 5 minutes
+function checkApprovalReplies() {
+  const threads = GmailApp.search('subject:("PW Portal ID Approval Request")', 0, 100);
+  let processed = 0;
+  for (const thread of threads) {
+    const messages = thread.getMessages();
+    const first = messages[0];
+    const firstBody = first.getPlainBody() || '';
+    const m = firstBody.match(/TOKEN[:：]\s*([A-Z0-9]+)/);
+    if (!m) continue;
+    const token = m[1];
+
+    // Look at replies (skip the original approval email)
+    for (let i = 1; i < messages.length; i++) {
+      const reply = (messages[i].getPlainBody() || '').toLowerCase();
+      if (reply.includes('approve') && reply.includes(token.toLowerCase())) {
+        processApproval(token, 'Approved', 'Your account has been approved. You can now login.');
+        processed++;
+        break;
+      } else if (reply.includes('reject') && reply.includes(token.toLowerCase())) {
+        const req = findRequestByToken(token);
+        if (req && req.status === 'Pending') {
+          req.sheet.getRange(req.index + 1, 6).setValue('Rejected');
+          req.sheet.getRange(req.index + 1, 9).setValue(new Date());
+          MailApp.sendEmail({ to: req.email, subject: 'PW Portal — Signup Request Rejected',
+            body: 'Your signup request (' + req.requestId + ') was rejected.' });
+          processed++;
+        }
+        break;
+      }
+    }
+  }
+  Logger.log('checkApprovalReplies: processed ' + processed + ' request(s)');
+  return processed;
+}
+
+// ── APPROVAL STATUS CHECK ─────────────────────────────────
+function handleGetApprovalStatus(e) {
+  const email = String(e.parameter.email || '').trim().toLowerCase();
+  if (!email) return json({ success: false, message: 'Email required' });
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName('Approvals');
+  if (!sheet) return json({ success: true, data: { requests: [] } });
+  const data = sheet.getDataRange().getValues();
+  const requests = [];
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][1]).trim().toLowerCase() === email) {
+      requests.push({ requestId: String(data[i][0]), centers: String(data[i][2]),
+                      role: String(data[i][3]), status: String(data[i][5]),
+                      approver: String(data[i][6]), createdAt: String(data[i][7]) });
+    }
+  }
+  return json({ success: true, data: { requests: requests } });
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function getSheet(name) {
+  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name).getDataRange().getValues();
+}
+function rows(sheet) { return sheet.slice(1); }
+function col(r, i) { return String(r[i] || '').trim(); }
+
+// Does this row's center fall within the user's accessible centers?
+function inCenters(rowCenter, centersArr) {
+  const c = rowCenter;
+  if (!c) return false;
+  return centersArr.some(uc => c.toLowerCase() === uc.toLowerCase());
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────
+function handleGetDashboard(e) {
+  const email  = col(e.parameter, 'email').toLowerCase();
+  const level  = parseInt(e.parameter.level) || 1;
+  const centerRaw = col(e.parameter, 'center');
+  const centers = centerRaw ? centerRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const fbm     = getSheet('FBM');
+  const stu     = getSheet('Students');
+  const tests   = getSheet('Test Result');
+
+  const filtered = rows(fbm).filter(r => {
+    const subj = col(r, 1);
+    if (subj === 'Cancelled') return false;
+    if (level >= 7) return true;                              // Admin — all
+    if (level >= 2) return inCenters(col(r, 4), centers);     // Center filter (multi)
+    return col(r, 3).toLowerCase() === email;                 // Faculty — own only
+  });
+
+  const batchSet = new Set(filtered.map(r => col(r, 0)).filter(Boolean));
+  const batchArr = [...batchSet];
+  const facultySet = new Set(filtered.map(r => col(r, 3).toLowerCase()).filter(Boolean));
+  const studentSet = new Set();
+  rows(stu).forEach(r => { if (batchArr.includes(col(r, 4))) studentSet.add(col(r, 0)); });
+
+  const stuLatest = {};
+  rows(tests).forEach(r => {
+    const reg = col(r, 0);
+    if (studentSet.has(reg)) stuLatest[reg] = r;
+  });
+  let totalPct = 0, cnt = 0;
+  Object.values(stuLatest).forEach(r => {
+    const p = parseFloat(r[13]);
+    if (!isNaN(p) && p > 0) { totalPct += p; cnt++; }
+  });
+
+  return json({ success: true, data: {
+    stats: {
+      totalBatches: batchSet.size,
+      totalStudents: studentSet.size,
+      totalFaculty: facultySet.size,
+      avgScore: cnt > 0 ? (totalPct / cnt).toFixed(1) : 0,
+      totalTests: rows(tests).filter(r => studentSet.has(col(r, 0))).length
+    }
+  }});
+}
+
+// ── BATCHES ───────────────────────────────────────────────
+function handleGetBatches(e) {
+  const email  = col(e.parameter, 'email').toLowerCase();
+  const level  = parseInt(e.parameter.level) || 1;
+  const centerRaw = col(e.parameter, 'center');
+  const centers = centerRaw ? centerRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const fbm = getSheet('FBM');
+  const stu = getSheet('Students');
+  const tests = getSheet('Test Result');
+
+  const filtered = rows(fbm).filter(r => {
+    const subj = col(r, 1);
+    if (subj === 'Cancelled') return false;
+    if (level >= 7) return true;
+    if (level >= 2) return inCenters(col(r, 4), centers);
+    return col(r, 3).toLowerCase() === email;
+  });
+
+  const batchMap = {};
+  const fKeys = {};
+  filtered.forEach(r => {
+    const b = col(r, 0); if (!b) return;
+    if (!batchMap[b]) { batchMap[b] = { subjects: new Set(), faculty: [] }; fKeys[b] = new Set(); }
+    const subj = col(r, 1);
+    if (subj) batchMap[b].subjects.add(subj);
+    const fEmail = col(r, 3).toLowerCase();
+    const fKey = fEmail + '|' + subj;
+    if (fEmail && !fKeys[b].has(fKey)) {
+      fKeys[b].add(fKey);
+      batchMap[b].faculty.push({ subject: subj, email: fEmail, pwid: col(r, 2), center: col(r, 4) });
+    }
+  });
+
+  const stuCount = {};
+  rows(stu).forEach(r => {
+    const b = col(r, 4);
+    if (batchMap[b]) stuCount[b] = (stuCount[b] || 0) + 1;
+  });
+
+  const batchRegnos = {};
+  rows(stu).forEach(r => {
+    const b = col(r, 4);
+    if (batchMap[b]) {
+      if (!batchRegnos[b]) batchRegnos[b] = new Set();
+      batchRegnos[b].add(col(r, 0));
+    }
+  });
+
+  const batchScores = {};
+  rows(tests).forEach(r => {
+    const reg = col(r, 0);
+    const pct = parseFloat(r[13]);
+    if (isNaN(pct) || pct <= 0) return;
+    for (const b in batchRegnos) {
+      if (batchRegnos[b].has(reg)) {
+        if (!batchScores[b]) batchScores[b] = { total: 0, count: 0 };
+        batchScores[b].total += pct;
+        batchScores[b].count++;
+      }
+    }
+  });
+
+  const batches = Object.keys(batchMap).map(b => ({
+    batch: b,
+    subjects: [...batchMap[b].subjects],
+    studentCount: stuCount[b] || 0,
+    faculty: batchMap[b].faculty,
+    avgScore: batchScores[b] ? +(batchScores[b].total / batchScores[b].count).toFixed(1) : null
+  }));
+
+  batches.sort((a, b) => (b.avgScore || 0) - (a.avgScore || 0));
+  return json({ success: true, data: { batches } });
+}
+
+// ── BATCH DETAIL ──────────────────────────────────────────
+function handleGetBatchDetail(e) {
+  const batch   = col(e.parameter, 'batch');
+  const subject = col(e.parameter, 'subject');
+
+  const stu  = getSheet('Students');
+  const tests = getSheet('Test Result');
+
+  const subCol = { Physics: 14, Chemistry: 15, Maths: 16, Zoology: 17, Botany: 18 };
+  const scoreCol = subject ? (subCol[subject] !== undefined ? subCol[subject] : 13) : 13;
+
+  const batchStudents = rows(stu).filter(r => col(r, 4) === batch)
+    .map(r => ({ regno: col(r, 0), formStatus: r[1], eligibility: r[3] }));
+  const regSet = new Set(batchStudents.map(s => s.regno));
+
+  const stuTests = {};
+  rows(tests).forEach(r => {
+    const reg = col(r, 0);
+    if (regSet.has(reg)) {
+      if (!stuTests[reg]) stuTests[reg] = [];
+      stuTests[reg].push(r);
+    }
+  });
+
+  const performances = batchStudents.map(stu => {
+    const results = stuTests[stu.regno] || [];
+    if (results.length === 0) {
+      return { ...stu, name: '', status: 'Absent', score: null, percentage: null, rank: null, tests: 0 };
+    }
+    const latest = results[results.length - 1];
+    return {
+      ...stu,
+      name: String(latest[1] || '').trim(),
+      stream: String(latest[5] || '').trim(),
+      testType: String(latest[6] || '').trim(),
+      status: 'Present',
+      score: latest[scoreCol] || 0,
+      percentage: parseFloat(latest[13]) || 0,
+      totalScore: parseFloat(latest[12]) || 0,
+      rank: latest[19] || null,
+      tests: results.length,
+      physics: parseFloat(latest[14]) || null,
+      chemistry: parseFloat(latest[15]) || null,
+      maths: parseFloat(latest[16]) || null,
+      zoology: parseFloat(latest[17]) || null,
+      botany: parseFloat(latest[18]) || null
+    };
+  });
+
+  const present = performances
+    .filter(p => p.status === 'Present' && p.percentage > 0)
+    .sort((a, b) => b.percentage - a.percentage);
+  const absent = performances.filter(p => p.status === 'Absent');
+
+  const n = present.length;
+  const topN = Math.max(1, Math.ceil(n * 0.2));
+  const botN = Math.max(1, Math.ceil(n * 0.2));
+
+  const avgScore = n > 0 ? +(present.reduce((s, p) => s + p.percentage, 0) / n).toFixed(1) : 0;
+  const highScore = n > 0 ? present[0].percentage : 0;
+  const lowScore = n > 0 ? present[n - 1].percentage : 0;
+
+  return json({ success: true, data: {
+    batch, subject,
+    total: batchStudents.length,
+    present: n,
+    absent: absent.length,
+    avgScore, highScore, lowScore,
+    toppers: present.slice(0, topN),
+    average: present.slice(topN, n - botN),
+    bottom: present.slice(n - botN),
+    absentees: absent,
+    allStudents: present
+  }});
+}
+
+// ── FACULTY ───────────────────────────────────────────────
+function handleGetFaculty(e) {
+  const email  = col(e.parameter, 'email').toLowerCase();
+  const level  = parseInt(e.parameter.level) || 1;
+  const centerRaw = col(e.parameter, 'center');
+  const centers = centerRaw ? centerRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const fbm   = getSheet('FBM');
+  const stu   = getSheet('Students');
+  const tests = getSheet('Test Result');
+  const roles = getSheet('ID-Role');
+
+  const filtered = rows(fbm).filter(r => {
+    if (col(r, 1) === 'Cancelled') return false;
+    if (level >= 7) return true;
+    if (level >= 2) return inCenters(col(r, 4), centers);
+    return col(r, 3).toLowerCase() === email;
+  });
+
+  const fMap = {};
+  filtered.forEach(r => {
+    const fEmail = col(r, 3).toLowerCase();
+    const subj = col(r, 1);
+    const batch = col(r, 0);
+    if (!fEmail || !batch) return;
+    if (!fMap[fEmail]) fMap[fEmail] = { batches: new Set(), subjects: new Set(), center: col(r, 4) };
+    fMap[fEmail].batches.add(batch);
+    if (subj) fMap[fEmail].subjects.add(subj);
+  });
+
+  const roleMap = {};
+  rows(roles).forEach(r => {
+    const e2 = col(r, 0).toLowerCase();
+    if (e2) roleMap[e2] = { role: col(r, 2), center: col(r, 1) };
+  });
+
+  const batchStu = {};
+  rows(stu).forEach(r => {
+    const b = col(r, 4);
+    if (!batchStu[b]) batchStu[b] = new Set();
+    batchStu[b].add(col(r, 0));
+  });
+
+  const stuScores = {};
+  rows(tests).forEach(r => {
+    const reg = col(r, 0);
+    const pct = parseFloat(r[13]);
+    if (!isNaN(pct) && pct > 0) {
+      if (!stuScores[reg]) stuScores[reg] = { total: 0, count: 0 };
+      stuScores[reg].total += pct;
+      stuScores[reg].count++;
+    }
+  });
+
+  const facultyList = Object.keys(fMap).map(fEmail => {
+    const f = fMap[fEmail];
+    const batchArr = [...f.batches];
+    let totalStudents = 0, totalScore = 0, scoreCount = 0;
+
+    batchArr.forEach(b => {
+      const sSet = batchStu[b] || new Set();
+      totalStudents += sSet.size;
+      sSet.forEach(reg => {
+        const sc = stuScores[reg];
+        if (sc) { totalScore += sc.total / sc.count; scoreCount++; }
+      });
+    });
+
+    return {
+      email: fEmail,
+      center: roleMap[fEmail]?.center || f.center,
+      role: roleMap[fEmail]?.role || 'Faculty',
+      batches: batchArr,
+      subjects: [...f.subjects],
+      totalStudents,
+      avgScore: scoreCount > 0 ? +(totalScore / scoreCount).toFixed(1) : null
+    };
+  });
+
+  facultyList.sort((a, b) => (b.avgScore || 0) - (a.avgScore || 0));
+  return json({ success: true, data: { faculty: facultyList } });
+}
+
+// ── STUDENTS ──────────────────────────────────────────────
+function handleGetStudents(e) {
+  const batch = col(e.parameter, 'batch');
+  const level = parseInt(e.parameter.level) || 1;
+  const email = col(e.parameter, 'email').toLowerCase();
+  const centerRaw = col(e.parameter, 'center');
+  const centers = centerRaw ? centerRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const fbm   = getSheet('FBM');
+  const stu   = getSheet('Students');
+  const tests = getSheet('Test Result');
+
+  const accBatches = new Set();
+  rows(fbm).forEach(r => {
+    if (col(r, 1) === 'Cancelled') return;
+    if (level >= 7) { accBatches.add(col(r, 0)); return; }
+    if (level >= 2 && inCenters(col(r, 4), centers)) { accBatches.add(col(r, 0)); return; }
+    if (col(r, 3).toLowerCase() === email) accBatches.add(col(r, 0));
+  });
+
+  const studentList = rows(stu).filter(r => {
+    const b = col(r, 4);
+    return batch ? b === batch : accBatches.has(b);
+  }).map(r => ({ regno: col(r, 0), batch: col(r, 4), formStatus: r[1], eligibility: r[3] }));
+
+  const regnos = new Set(studentList.map(s => s.regno));
+  const stuTests = {};
+  rows(tests).forEach(r => {
+    const reg = col(r, 0);
+    if (regnos.has(reg)) {
+      if (!stuTests[reg]) stuTests[reg] = [];
+      stuTests[reg].push(r);
+    }
+  });
+
+  const enriched = studentList.map(stu => {
+    const results = stuTests[stu.regno] || [];
+    if (results.length === 0) {
+      return { ...stu, name: '', tests: 0, avgScore: null, bestSubject: '—', lastDate: '' };
+    }
+    const latest = results[results.length - 1];
+    let totalPct = 0, cnt = 0;
+    results.forEach(r => { const p = parseFloat(r[13]); if (!isNaN(p) && p > 0) { totalPct += p; cnt++; } });
+
+    const subjs = ['Physics','Chemistry','Maths','Zoology','Botany'];
+    const best = [14,15,16,17,18].map((c, i) => ({ name: subjs[i], score: parseFloat(latest[c]) || 0 }))
+      .filter(s => s.score > 0).sort((a, b) => b.score - a.score);
+
+    return {
+      ...stu,
+      name: String(latest[1] || '').trim(),
+      stream: String(latest[5] || '').trim(),
+      tests: results.length,
+      avgScore: cnt > 0 ? +(totalPct / cnt).toFixed(1) : null,
+      bestSubject: best.length > 0 ? best[0].name : '—',
+      lastDate: String(latest[10] || '').trim()
+    };
+  });
+
+  enriched.sort((a, b) => (b.avgScore || 0) - (a.avgScore || 0));
+  return json({ success: true, data: { students: enriched } });
+}
+
+// ── STUDENT DETAIL ────────────────────────────────────────
+function handleGetStudentDetail(e) {
+  const regno = col(e.parameter, 'regno');
+  const stu   = getSheet('Students');
+  const tests = getSheet('Test Result');
+
+  const stuRow = rows(stu).find(r => col(r, 0) === regno);
+  if (!stuRow) return json({ success: false, message: 'Student not found' });
+
+  const stuInfo = { regno, batch: col(stuRow, 4), formStatus: stuRow[1], eligibility: stuRow[3] };
+
+  const results = rows(tests).filter(r => col(r, 0) === regno);
+  const testHistory = results.map(r => ({
+    name: String(r[1] || '').trim(),
+    stream: String(r[5] || '').trim(),
+    testType: String(r[6] || '').trim(),
+    testDate: String(r[10] || '').trim(),
+    totalMarks: parseFloat(r[11]) || 0,
+    score: parseFloat(r[12]) || 0,
+    percentage: parseFloat(r[13]) || 0,
+    physics: r[14] !== '' && r[14] != null ? parseFloat(r[14]) : null,
+    chemistry: r[15] !== '' && r[15] != null ? parseFloat(r[15]) : null,
+    maths: r[16] !== '' && r[16] != null ? parseFloat(r[16]) : null,
+    zoology: r[17] !== '' && r[17] != null ? parseFloat(r[17]) : null,
+    botany: r[18] !== '' && r[18] != null ? parseFloat(r[18]) : null,
+    rank: r[19] || null
+  }));
+
+  let totalPct = 0, cnt = 0;
+  testHistory.forEach(t => { if (t.percentage > 0) { totalPct += t.percentage; cnt++; } });
+
+  const subAvgs = {};
+  ['physics','chemistry','maths','zoology','botany'].forEach(s => {
+    const vals = testHistory.map(t => t[s]).filter(v => v !== null && v > 0);
+    subAvgs[s] = vals.length > 0 ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+  });
+
+  return json({ success: true, data: {
+    student: { ...stuInfo, name: testHistory.length > 0 ? testHistory[0].name : '',
+               testsTaken: testHistory.length, avgScore: cnt > 0 ? +(totalPct / cnt).toFixed(1) : '—',
+               subjectAverages: subAvgs },
+    tests: testHistory
+  }});
+}
+
+// ── JSON RESPONSE ─────────────────────────────────────────
+function json(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
