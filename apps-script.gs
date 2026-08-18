@@ -1,34 +1,6 @@
-// ============================================================
-//  PW Maharashtra Region — Faculty Portal Backend
-//  Physics Wallah | Chhatrapati Sambhajinagar Vidyapeeth
-//  v3 — Hierarchy Login + Signup + Approval Flow
-// ============================================================
-//
-//  Sheet Structure:
-//  ────────────────────────────────────────────────────────
-//  ID-Role (A–K):
-//    A=MAIL ID, B=CENTER (comma-separated for multi-center),
-//    C=ROLE, D-G=Other, H=Password, I-J=Other, K=OTP
-//
-//  FBM (A–E):
-//    A=Batch, B=Subject, C=PWID, D=MailID, E=Center
-//
-//  Students (A–E):
-//    A=regno, B=form_status, C=newpayment_checks, D=eligibility_status, E=batch
-//
-//  Test Result (A–T):
-//    A=reg_no, B=student_name, C=joining_date, D=acad_year, E=current_batch,
-//    F=class_stream, G=test_type, H=paper_type, I=test_pattern, J=testseries,
-//    K=test_date, L=totalmarks, M=userscore, N=markspercent,
-//    O=physics, P=chemistry, Q=maths, R=zoology, S=botany, T=test_rank
-//
-//  Approvals (A–J):  [auto-created]
-//    A=Request ID, B=Email, C=Centers(CSV), D=Role, E=Password,
-//    F=Status(Pending/Approved/Rejected), G=Approver Email,
-//    H=Created At, I=Processed At, J=Token
-// ============================================================
 
-const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+
+const SPREADSHEET_ID = '1d_Z2ZoypN-nnD5ybHLo54JGOnjKj3PKE9ku1ztLj-UU';
 const DEFAULT_PASSWORD = 'Acer@1234';
 const ADMIN_EMAIL = 'ambikesh.srivastava@pw.live';
 
