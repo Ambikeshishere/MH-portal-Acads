@@ -29,17 +29,29 @@ function navigate(view) {
   currentView = view;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.topnav-link').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-link').forEach(n => n.classList.remove('active'));
 
   const viewEl = document.getElementById('view-' + view);
   const navEl = document.querySelector(`.topnav-link[data-view="${view}"]`);
+  const mobEl = document.querySelector(`.mobile-nav-link[data-view="${view}"]`);
   if (viewEl) viewEl.classList.add('active');
   if (navEl) navEl.classList.add('active');
+  if (mobEl) mobEl.classList.add('active');
 
-  // Load data for the view
+  // Load data for the view (render immediately if already loaded)
   if (view === 'dashboard' && !dashData) loadDashboard();
-  if (view === 'batches' && batchesData.length === 0) loadBatches();
-  if (view === 'faculty' && facultyData.length === 0) loadFaculty();
-  if (view === 'students' && studentsData.length === 0) loadStudents();
+  if (view === 'batches') {
+    if (batchesData.length === 0) loadBatches();
+    else { populateBatchFilters(); renderBatches(batchesData); }
+  }
+  if (view === 'faculty') {
+    if (facultyData.length === 0) loadFaculty();
+    else { populateFacultyFilters(); renderFaculty(facultyData); }
+  }
+  if (view === 'students') {
+    if (studentsData.length === 0) loadStudents();
+    else { populateStudentFilters(); renderStudents(studentsData); }
+  }
 }
 
 // ── API HELPERS ────────────────────────────────────
