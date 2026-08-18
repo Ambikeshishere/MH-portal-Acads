@@ -281,16 +281,21 @@ function computeHome(filters) {
 
   // 10) Absent students — their batch had a test but they didn't give it.
   //     Pending = number of batch tests the student missed.
+  //     Name/stream come from the STUDENTS sheet (student_name, class_course).
   const batchTestDates = {};
   const studentTestDates = {};
   const studentInfo = {};
+  for (const s of DATA.students) {
+    if (s.regno && !studentInfo[s.regno]) {
+      studentInfo[s.regno] = { name: String(s.student_name || '').trim(), stream: String(s.class_course || '').trim() };
+    }
+  }
   for (const t of DATA.tests) {
     const b = t.current_batch;
     if (b) { if (!batchTestDates[b]) batchTestDates[b] = new Set(); batchTestDates[b].add(t._date); }
     if (t.reg_no) {
       if (!studentTestDates[t.reg_no]) studentTestDates[t.reg_no] = new Set();
       studentTestDates[t.reg_no].add(t._date);
-      if (!studentInfo[t.reg_no]) studentInfo[t.reg_no] = { name: String(t.student_name || '').trim(), stream: String(t.stream || '').trim() };
     }
   }
   const absentStudents = [];
@@ -314,6 +319,11 @@ function computeHome(filters) {
   const bottomBatch = batchList[batchList.length - 1] || null;
   const graphBatch = filters.batch || (bestBatch ? bestBatch.batch : null);
 
+  // Top 10% / bottom 10% of the SCORE RANGE (not student count):
+  // avg score >= 90% → topper band, avg score <= 10% → bottom band.
+  const TOP_BAND = 90;
+  const BOT_BAND = 10;
+
   return {
     kpis: {
       centers: centers,
@@ -324,8 +334,8 @@ function computeHome(filters) {
       avgStudents: avgStudents,
       absentStudents: absentStudents.length
     },
-    toppers: studentList.slice(0, 5),
-    bottom: studentList.slice(-5).reverse(),
+    toppers: studentList.filter(s => s.avg >= TOP_BAND),
+    bottom: studentList.filter(s => s.avg <= BOT_BAND).reverse(),
     bestBatch: bestBatch ? { ...bestBatch, topStudents: topStudentsOf(bestBatch.batch, 3) } : null,
     bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,

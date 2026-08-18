@@ -87,32 +87,71 @@ function visibleStuSubjects(detail) {
 
 function renderStuGraph(detail) {
   const wrap = document.getElementById('studentSubjectGraph');
-  const subs = visibleStuSubjects(detail);
-  if (!detail.history.length) { wrap.innerHTML = '<div class="empty-msg"><p>No tests</p></div>'; return; }
+  const history = detail.history;
+  if (!history.length) { wrap.innerHTML = '<div class="empty-msg"><p>No tests</p></div>'; return; }
 
-  // percent per subject per test = subject_marks / userscore * 100
-  const rows = detail.history.map(t => {
-    const per = {};
-    for (const s of subs) per[s] = t.score > 0 ? +((t.subjects[s] / t.score) * 100).toFixed(1) : 0;
-    return { date: t.date, per };
-  });
+  // Score per test (chronological)
+  const scores = history.map(t => t.score);
+  const maxScore = Math.max(...scores, 1);
+  const n = history.length;
 
-  const max = Math.max(1, ...rows.flatMap(r => subs.map(s => r.per[s])));
+  // ── SVG line graph ──
+  const W = 720, H = 320, PL = 50, PR = 30, PT = 30, PB = 46;
+  const plotW = W - PL - PR, plotH = H - PT - PB;
+  const x = i => PL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const y = v => PT + plotH - (v / maxScore) * plotH;
+
+  // Main line path
+  const linePath = history.map((t, i) => (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(t.score).toFixed(1)).join(' ');
+
+  // Prediction: linear regression on (index, score), extend 2 future points
+  let predPath = '';
+  let predPoints = [];
+  if (n >= 2) {
+    const sumX = history.reduce((s, _, i) => s + i, 0);
+    const sumY = scores.reduce((s, v) => s + v, 0);
+    const sumXY = history.reduce((s, t, i) => s + i * t.score, 0);
+    const sumXX = history.reduce((s, _, i) => s + i * i, 0);
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    const lastX = n - 1;
+    predPoints = [lastX, lastX + 1, lastX + 2].map(ix => ({ ix, v: slope * ix + intercept }));
+    predPath = predPoints.map((p, i) => (i === 0 ? 'M' : 'L') + x(p.ix).toFixed(1) + ' ' + y(Math.max(0, p.v)).toFixed(1)).join(' ');
+  }
+
+  // Y-axis gridlines (4)
+  const gridlines = [0, 1, 2, 3, 4].map(g => {
+    const val = (maxScore / 4) * g;
+    const yy = y(val);
+    return `<line x1="${PL}" y1="${yy}" x2="${W - PR}" y2="${yy}" stroke="rgba(255,255,255,0.08)"/>
+      <text x="${PL - 8}" y="${yy + 4}" text-anchor="end" class="chart-label">${Math.round(val)}</text>`;
+  }).join('');
+
+  // X-axis labels (test dates)
+  const xLabels = history.map((t, i) => {
+    const short = String(t.date).replace(/, \d{4}/, '');
+    return `<text x="${x(i)}" y="${H - 18}" text-anchor="middle" class="chart-label">${esc(short)}</text>`;
+  }).join('');
+
+  // Points
+  const points = history.map((t, i) =>
+    `<circle cx="${x(i)}" cy="${y(t.score)}" r="4" fill="#F43F5E" stroke="#fff" stroke-width="1.5">
+       <title>${esc(t.date)}: ${t.score}/${t.total}</title></circle>`).join('');
+
   wrap.innerHTML = `
-    <div class="graph-title">Subject % of total score per test — <strong>${esc(detail.name || detail.regno)}</strong></div>
-    ${rows.map(r => `
-      <div class="stu-test-block">
-        <div class="stu-test-date">${esc(r.date)}</div>
-        ${subs.map(s => `
-          <div class="subject-bar-row">
-            <div class="subject-bar-label">${SUBJ_LABELS[s]}</div>
-            <div class="subject-bar-track">
-              <div class="subject-bar-fill" style="width:${Math.round((r.per[s] / max) * 100)}%"></div>
-            </div>
-            <div class="subject-bar-value">${r.per[s]}%</div>
-          </div>
-        `).join('')}
-      </div>
-    `).join('')}
+    <div class="graph-title">Score per Test — <strong>${esc(detail.name || detail.regno)}</strong> (prediction dotted)</div>
+    <svg viewBox="0 0 ${W} ${H}" class="line-chart" preserveAspectRatio="xMidYMid meet">
+      ${gridlines}
+      <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H - PB}" stroke="rgba(255,255,255,0.15)"/>
+      <line x1="${PL}" y1="${H - PB}" x2="${W - PR}" y2="${H - PB}" stroke="rgba(255,255,255,0.15)"/>
+      ${predPath ? `<path d="${predPath}" fill="none" stroke="#22D3EE" stroke-width="2" stroke-dasharray="6 5"/>` : ''}
+      <path d="${linePath}" fill="none" stroke="#F43F5E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${points}
+      ${xLabels}
+    </svg>
+    <div class="chart-legend">
+      <span><i class="legend-dot" style="background:#F43F5E"></i> Actual Score</span>
+      <span><i class="legend-dot" style="background:#22D3EE"></i> Prediction</span>
+    </div>
   `;
 }
