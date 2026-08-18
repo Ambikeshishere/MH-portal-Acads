@@ -222,7 +222,7 @@ function initApp() {
   batchesData = [];
   facultyData = [];
   studentsData = [];
-  navigate('dashboard');
+  navigate('home');
 }
 
 function setupCenterSwitcher() {

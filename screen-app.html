@@ -71,47 +71,99 @@
   <!-- Content -->
   <main class="main-content">
 
-    <!-- DASHBOARD VIEW -->
-    <div id="view-dashboard" class="view active">
-      <div class="stats-grid">
+    <!-- HOME VIEW (unified) -->
+    <div id="view-home" class="view active">
+      <div class="home-error" id="homeError"></div>
+
+      <!-- FILTER PANEL -->
+      <div class="home-filters">
+        <div class="filter-row">
+          <div class="filter-group"><label>Center</label><select id="homeFilterCenter" onchange="onHomeCenterChange()"><option value="">All Centers</option></select></div>
+          <div class="filter-group"><label>Class / Stream</label><select id="homeFilterStream" onchange="onHomeStreamChange()"><option value="">All Classes</option></select></div>
+          <div class="filter-group"><label>Batch</label><select id="homeFilterBatch" onchange="onHomeBatchChange()"><option value="">All Batches</option></select></div>
+          <div class="filter-group"><label>From Date</label><input type="date" id="homeDateFrom" onchange="onHomeDateChange()"></div>
+          <div class="filter-group"><label>To Date</label><input type="date" id="homeDateTo" onchange="onHomeDateChange()"></div>
+          <div class="filter-group filter-reset"><button type="button" class="btn-reset" onclick="resetHomeFilters()">Reset</button></div>
+        </div>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="stats-grid home-stats">
         <div class="stat-card stat-purple">
-          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statBatches">0</div>
-            <div class="stat-label">Total Batches</div>
+            <div class="stat-number stat-number-sm" id="homeKpiCenter">—</div>
+            <div class="stat-label">Center</div>
           </div>
         </div>
         <div class="stat-card stat-blue">
-          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statStudents">0</div>
-            <div class="stat-label">Total Students</div>
+            <div class="stat-number" id="homeKpiBatches">0</div>
+            <div class="stat-label">Total Batches</div>
           </div>
         </div>
         <div class="stat-card stat-green">
-          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg></div>
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statFaculty">0</div>
-            <div class="stat-label">Total Faculty</div>
+            <div class="stat-number" id="homeKpiStudents">0</div>
+            <div class="stat-label">Total Students</div>
           </div>
         </div>
         <div class="stat-card stat-orange">
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-number" id="homeKpiFaculty">0</div>
+            <div class="stat-label">Total Faculty</div>
+          </div>
+        </div>
+        <div class="stat-card stat-cyan">
           <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statAvgScore">0%</div>
+            <div class="stat-number" id="homeKpiAvg">0%</div>
             <div class="stat-label">Avg Score</div>
           </div>
         </div>
       </div>
-      <div class="dashboard-grid">
+
+      <!-- TOPPER / BOTTOM STUDENTS -->
+      <div class="home-grid">
+        <div class="table-card">
+          <h3 class="card-title">&#127942; Topper Students</h3>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="homeTopperHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
+              <tbody id="homeTopperBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="table-card">
+          <h3 class="card-title">&#9888;&#65039; Bottom Performing Students</h3>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="homeBottomHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
+              <tbody id="homeBottomBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- BEST / BOTTOM BATCH -->
+      <div class="home-grid">
         <div class="dash-card">
-          <h3>Top Performing Batches</h3>
-          <div id="topBatchesList" class="dash-list"></div>
+          <h3>&#127942; Best Batch</h3>
+          <div id="homeBestBatch" class="dash-list"></div>
         </div>
         <div class="dash-card">
-          <h3>Batches Needing Attention</h3>
-          <div id="bottomBatchesList" class="dash-list"></div>
+          <h3>&#9888;&#65039; Bottom Batch</h3>
+          <div id="homeBottomBatch" class="dash-list"></div>
         </div>
+      </div>
+
+      <!-- SUBJECT GRAPH -->
+      <div class="dash-card" style="margin-top:20px">
+        <h3>&#128200; Subject Performance</h3>
+        <div id="homeSubjectGraph"></div>
       </div>
     </div>
 
@@ -213,21 +265,9 @@
 
   <!-- MOBILE BOTTOM NAV -->
   <nav class="mobile-nav" id="mobileNav">
-    <a href="#" class="mobile-nav-link active" data-view="dashboard" onclick="navigate('dashboard')">
+    <a href="#" class="mobile-nav-link active" data-view="home" onclick="navigate('home')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Home</span>
-    </a>
-    <a href="#" class="mobile-nav-link" data-view="batches" onclick="navigate('batches')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      <span>Batches</span>
-    </a>
-    <a href="#" class="mobile-nav-link" data-view="faculty" onclick="navigate('faculty')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Faculty</span>
-    </a>
-    <a href="#" class="mobile-nav-link" data-view="students" onclick="navigate('students')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
-      <span>Students</span>
     </a>
   </nav>
 </div>

@@ -14,7 +14,7 @@ let dashData = null;
 let batchesData = [];
 let facultyData = [];
 let studentsData = [];
-let currentView = 'dashboard';
+let currentView = 'home';
 let currentBatch = null;
 let backendVersion = 'unknown'; // 'old' or 'new'
 
@@ -39,6 +39,7 @@ function navigate(view) {
   if (mobEl) mobEl.classList.add('active');
 
   // Load data for the view (render immediately if already loaded)
+  if (view === 'home') loadHome();
   if (view === 'dashboard' && !dashData) loadDashboard();
   if (view === 'batches') {
     if (batchesData.length === 0) loadBatches();

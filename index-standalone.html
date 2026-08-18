@@ -278,47 +278,99 @@
   <!-- Content -->
   <main class="main-content">
 
-    <!-- DASHBOARD VIEW -->
-    <div id="view-dashboard" class="view active">
-      <div class="stats-grid">
+    <!-- HOME VIEW (unified) -->
+    <div id="view-home" class="view active">
+      <div class="home-error" id="homeError"></div>
+
+      <!-- FILTER PANEL -->
+      <div class="home-filters">
+        <div class="filter-row">
+          <div class="filter-group"><label>Center</label><select id="homeFilterCenter" onchange="onHomeCenterChange()"><option value="">All Centers</option></select></div>
+          <div class="filter-group"><label>Class / Stream</label><select id="homeFilterStream" onchange="onHomeStreamChange()"><option value="">All Classes</option></select></div>
+          <div class="filter-group"><label>Batch</label><select id="homeFilterBatch" onchange="onHomeBatchChange()"><option value="">All Batches</option></select></div>
+          <div class="filter-group"><label>From Date</label><input type="date" id="homeDateFrom" onchange="onHomeDateChange()"></div>
+          <div class="filter-group"><label>To Date</label><input type="date" id="homeDateTo" onchange="onHomeDateChange()"></div>
+          <div class="filter-group filter-reset"><button type="button" class="btn-reset" onclick="resetHomeFilters()">Reset</button></div>
+        </div>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="stats-grid home-stats">
         <div class="stat-card stat-purple">
-          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statBatches">0</div>
-            <div class="stat-label">Total Batches</div>
+            <div class="stat-number stat-number-sm" id="homeKpiCenter">—</div>
+            <div class="stat-label">Center</div>
           </div>
         </div>
         <div class="stat-card stat-blue">
-          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statStudents">0</div>
-            <div class="stat-label">Total Students</div>
+            <div class="stat-number" id="homeKpiBatches">0</div>
+            <div class="stat-label">Total Batches</div>
           </div>
         </div>
         <div class="stat-card stat-green">
-          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg></div>
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statFaculty">0</div>
-            <div class="stat-label">Total Faculty</div>
+            <div class="stat-number" id="homeKpiStudents">0</div>
+            <div class="stat-label">Total Students</div>
           </div>
         </div>
         <div class="stat-card stat-orange">
+          <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg></div>
+          <div class="stat-info">
+            <div class="stat-number" id="homeKpiFaculty">0</div>
+            <div class="stat-label">Total Faculty</div>
+          </div>
+        </div>
+        <div class="stat-card stat-cyan">
           <div class="stat-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
           <div class="stat-info">
-            <div class="stat-number" id="statAvgScore">0%</div>
+            <div class="stat-number" id="homeKpiAvg">0%</div>
             <div class="stat-label">Avg Score</div>
           </div>
         </div>
       </div>
-      <div class="dashboard-grid">
+
+      <!-- TOPPER / BOTTOM STUDENTS -->
+      <div class="home-grid">
+        <div class="table-card">
+          <h3 class="card-title">&#127942; Topper Students</h3>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="homeTopperHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
+              <tbody id="homeTopperBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="table-card">
+          <h3 class="card-title">&#9888;&#65039; Bottom Performing Students</h3>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="homeBottomHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
+              <tbody id="homeBottomBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- BEST / BOTTOM BATCH -->
+      <div class="home-grid">
         <div class="dash-card">
-          <h3>Top Performing Batches</h3>
-          <div id="topBatchesList" class="dash-list"></div>
+          <h3>&#127942; Best Batch</h3>
+          <div id="homeBestBatch" class="dash-list"></div>
         </div>
         <div class="dash-card">
-          <h3>Batches Needing Attention</h3>
-          <div id="bottomBatchesList" class="dash-list"></div>
+          <h3>&#9888;&#65039; Bottom Batch</h3>
+          <div id="homeBottomBatch" class="dash-list"></div>
         </div>
+      </div>
+
+      <!-- SUBJECT GRAPH -->
+      <div class="dash-card" style="margin-top:20px">
+        <h3>&#128200; Subject Performance</h3>
+        <div id="homeSubjectGraph"></div>
       </div>
     </div>
 
@@ -420,21 +472,9 @@
 
   <!-- MOBILE BOTTOM NAV -->
   <nav class="mobile-nav" id="mobileNav">
-    <a href="#" class="mobile-nav-link active" data-view="dashboard" onclick="navigate('dashboard')">
+    <a href="#" class="mobile-nav-link active" data-view="home" onclick="navigate('home')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Home</span>
-    </a>
-    <a href="#" class="mobile-nav-link" data-view="batches" onclick="navigate('batches')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      <span>Batches</span>
-    </a>
-    <a href="#" class="mobile-nav-link" data-view="faculty" onclick="navigate('faculty')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Faculty</span>
-    </a>
-    <a href="#" class="mobile-nav-link" data-view="students" onclick="navigate('students')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
-      <span>Students</span>
     </a>
   </nav>
 </div>
@@ -467,7 +507,7 @@ let dashData = null;
 let batchesData = [];
 let facultyData = [];
 let studentsData = [];
-let currentView = 'dashboard';
+let currentView = 'home';
 let currentBatch = null;
 let backendVersion = 'unknown'; // 'old' or 'new'
 
@@ -492,6 +532,7 @@ function navigate(view) {
   if (mobEl) mobEl.classList.add('active');
 
   // Load data for the view (render immediately if already loaded)
+  if (view === 'home') loadHome();
   if (view === 'dashboard' && !dashData) loadDashboard();
   if (view === 'batches') {
     if (batchesData.length === 0) loadBatches();
@@ -837,7 +878,7 @@ function initApp() {
   batchesData = [];
   facultyData = [];
   studentsData = [];
-  navigate('dashboard');
+  navigate('home');
 }
 
 function setupCenterSwitcher() {
@@ -993,6 +1034,484 @@ function handleLogout() {
   document.getElementById('loginId').value = '';
   document.getElementById('loginPassword').value = '';
   showScreen('loginScreen');
+}
+/* ===== data.js ===== */
+// ============================================================
+//  data.js — PUBLISHED-CSV DATA LAYER
+//  Fetches the three published Google-Sheets CSVs directly in the
+//  browser (no Apps Script backend for data), parses them, caches
+//  them, and computes everything the unified Home view needs:
+//  KPIs, toppers/bottom students, best/bottom batches, and the
+//  per-subject average graph.
+//
+//  Depends on: core.js (user state)
+//  Load AFTER core.js, BEFORE home.js
+// ============================================================
+
+const CSV_URLS = {
+  tests:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vQS5o-ytwI__9eubWvffSsHeCLSiV6ED9kaLa5tYWuoS7CIdfdEhZxMarJVBCT66DaP5JBwuYs_A77a/pub?output=csv&gid=475005675',
+  fbm:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vQS5o-ytwI__9eubWvffSsHeCLSiV6ED9kaLa5tYWuoS7CIdfdEhZxMarJVBCT66DaP5JBwuYs_A77a/pub?output=csv&gid=0',
+  students: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQS5o-ytwI__9eubWvffSsHeCLSiV6ED9kaLa5tYWuoS7CIdfdEhZxMarJVBCT66DaP5JBwuYs_A77a/pub?gid=93108683&single=true&output=csv'
+};
+
+// Subject columns in the Test Result CSV (0-indexed)
+const SUBJ_COLS = { physics: 14, chemistry: 15, maths: 16, zoology: 17, botany: 18 };
+const SUBJ_NAMES = ['physics', 'chemistry', 'maths', 'zoology', 'botany'];
+const SUBJ_LABELS = { physics: 'Physics', chemistry: 'Chemistry', maths: 'Maths', zoology: 'Zoology', botany: 'Botany' };
+
+// ── STATE ────────────────────────────────────────────
+let DATA = { tests: [], fbm: [], students: [], loaded: false, loading: false };
+
+// ── CSV PARSER (handles quoted fields, commas, escaped quotes) ──
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip CR */ }
+      else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// Convert parsed rows (first row = header) into array of objects.
+function rowsToObjects(rows) {
+  if (!rows.length) return [];
+  const header = rows[0].map(h => String(h).trim());
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length === 1 && r[0] === '') continue; // skip blank lines
+    const obj = {};
+    for (let j = 0; j < header.length; j++) obj[header[j]] = (r[j] !== undefined ? r[j] : '');
+    out.push(obj);
+  }
+  return out;
+}
+
+async function fetchCSV(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('CSV fetch failed: HTTP ' + res.status);
+  return rowsToObjects(parseCSV(await res.text()));
+}
+
+// Load all three CSVs once, then cache. Returns a promise.
+function loadData(force) {
+  if (DATA.loaded && !force) return Promise.resolve(DATA);
+  if (DATA.loading) return DATA.loading;
+  DATA.loading = (async () => {
+    const [tests, fbm, students] = await Promise.all([
+      fetchCSV(CSV_URLS.tests),
+      fetchCSV(CSV_URLS.fbm),
+      fetchCSV(CSV_URLS.students)
+    ]);
+    DATA.tests = tests;
+    DATA.fbm = fbm;
+    DATA.students = students;
+    DATA.loaded = true;
+    DATA.loading = false;
+    return DATA;
+  })();
+  return DATA.loading;
+}
+
+// ── PARSING HELPERS ──────────────────────────────────
+// markspercent arrives as "48.00%" (string with %). Return number.
+function parsePct(s) {
+  const n = parseFloat(String(s).replace('%', '').trim());
+  return isNaN(n) ? 0 : n;
+}
+function parseNum(s) {
+  const n = parseFloat(String(s).trim());
+  return isNaN(n) ? 0 : n;
+}
+// _date arrives as "9 Aug, 2026". Date inputs arrive as "2026-08-09".
+// Return a Date or null.
+function parseTestDate(s) {
+  const str = String(s).trim();
+  if (!str) return null;
+  // ISO "YYYY-MM-DD" (from <input type="date">)
+  const iso = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+  // "9 Aug, 2026"
+  const m = str.match(/(\d{1,2})\s+([A-Za-z]+),?\s+(\d{4})/);
+  if (!m) return null;
+  const months = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  const mon = months[m[2].slice(0, 3)];
+  if (mon === undefined) return null;
+  return new Date(+m[3], mon, +m[1]);
+}
+
+// ── ROLE / CENTER SCOPING ────────────────────────────
+// Centers the current user is allowed to see.
+function accessibleCenters() {
+  if (user.level >= 5) return allCenters();
+  const centers = user.centers && user.centers.length ? user.centers
+    : (user.center ? user.center.split(',').map(s => s.trim()).filter(Boolean) : []);
+  return centers;
+}
+
+function allCenters() {
+  const set = new Set();
+  DATA.fbm.forEach(r => { if (r.Center) set.add(r.Center); });
+  return [...set];
+}
+
+// Subjects a Faculty teaches (mapped to Test Result columns).
+function facultySubjects(email) {
+  const subs = new Set();
+  DATA.fbm.forEach(r => {
+    if (r.MailID && r.MailID.trim().toLowerCase() === String(email).toLowerCase()) {
+      const s = r.Subject;
+      if (SUBJ_LABELS[s.toLowerCase()]) subs.add(s.toLowerCase());
+    }
+  });
+  return [...subs];
+}
+
+// ── HOME COMPUTATION ─────────────────────────────────
+// filters: { centers:[], stream:'', batch:'', dateFrom:'', dateTo:'' }
+// Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
+// and the filter option lists.
+function computeHome(filters) {
+  const centers = filters.centers && filters.centers.length ? filters.centers : allCenters();
+  const centerSet = new Set(centers);
+
+  // 1) Accessible batches (batch → center in selected centers)
+  const batchCenter = {};
+  const accBatches = new Set();
+  DATA.fbm.forEach(r => {
+    const b = r.Batch, c = r.Center;
+    if (!b) return;
+    if (!batchCenter[b]) batchCenter[b] = c;
+    if (centerSet.has(c)) accBatches.add(b);
+  });
+
+  // 2) Accessible students (regno whose batch is in scope)
+  const studentBatch = {};
+  const accStudents = new Set();
+  DATA.students.forEach(r => {
+    const reg = r.regno, b = r.batch;
+    if (!reg) return;
+    studentBatch[reg] = b;
+    if (accBatches.has(b)) accStudents.add(reg);
+  });
+
+  // 3) Faculty in scope
+  const accFaculty = new Set();
+  DATA.fbm.forEach(r => {
+    if (accBatches.has(r.Batch) && r.MailID) accFaculty.add(r.MailID.trim());
+  });
+
+  // 4) Filter tests by scope + stream + batch + date range
+  const dateFrom = filters.dateFrom ? parseTestDate(filters.dateFrom) : null;
+  const dateTo = filters.dateTo ? parseTestDate(filters.dateTo) : null;
+  const filteredTests = [];
+  for (const t of DATA.tests) {
+    if (!accStudents.has(t.reg_no)) continue;
+    if (filters.stream && t.stream !== filters.stream) continue;
+    if (filters.batch && t.current_batch !== filters.batch) continue;
+    if (dateFrom || dateTo) {
+      const d = parseTestDate(t._date);
+      if (!d) continue;
+      if (dateFrom && d < dateFrom) continue;
+      if (dateTo && d > dateTo) continue;
+    }
+    filteredTests.push(t);
+  }
+
+  // 5) Per-student aggregation (avg % + latest test for subject marks)
+  const stuAgg = {};
+  for (const t of filteredTests) {
+    const pct = parsePct(t.markspercent);
+    if (pct <= 0) continue;
+    if (!stuAgg[t.reg_no]) stuAgg[t.reg_no] = { total: 0, count: 0, latest: t };
+    stuAgg[t.reg_no].total += pct;
+    stuAgg[t.reg_no].count++;
+    stuAgg[t.reg_no].latest = t;
+  }
+
+  const studentList = Object.keys(stuAgg).map(reg => {
+    const a = stuAgg[reg];
+    const lt = a.latest;
+    return {
+      regno: reg,
+      name: String(lt.student_name || '').trim(),
+      stream: String(lt.stream || '').trim(),
+      batch: String(lt.current_batch || '').trim(),
+      avg: +(a.total / a.count).toFixed(1),
+      physics: parseNum(lt.physics_marks),
+      chemistry: parseNum(lt.chemistry_marks),
+      maths: parseNum(lt.maths_marks),
+      zoology: parseNum(lt.zoology_marks),
+      botany: parseNum(lt.botany_marks)
+    };
+  });
+  studentList.sort((a, b) => b.avg - a.avg);
+
+  // 6) Per-batch aggregation
+  const batchAgg = {};
+  for (const t of filteredTests) {
+    const pct = parsePct(t.markspercent);
+    if (pct <= 0) continue;
+    const b = t.current_batch;
+    if (!b) continue;
+    if (!batchAgg[b]) batchAgg[b] = { total: 0, count: 0 };
+    batchAgg[b].total += pct;
+    batchAgg[b].count++;
+  }
+  const batchList = Object.keys(batchAgg).map(b => ({
+    batch: b,
+    avg: +(batchAgg[b].total / batchAgg[b].count).toFixed(1)
+  })).sort((a, b) => b.avg - a.avg);
+
+  // Top 3 students of a given batch (by avg %)
+  function topStudentsOf(batch, n) {
+    return studentList.filter(s => s.batch === batch).slice(0, n);
+  }
+
+  // 7) Subject averages for a batch (default = best batch)
+  function subjectAverages(batch) {
+    const sums = { physics: 0, chemistry: 0, maths: 0, zoology: 0, botany: 0 };
+    const counts = { physics: 0, chemistry: 0, maths: 0, zoology: 0, botany: 0 };
+    for (const t of filteredTests) {
+      if (t.current_batch !== batch) continue;
+      for (const s of SUBJ_NAMES) {
+        const v = parseNum(t[SUBJ_LABELS[s].toLowerCase() + '_marks']);
+        if (v > 0) { sums[s] += v; counts[s]++; }
+      }
+    }
+    return SUBJ_NAMES.map(s => ({
+      subject: SUBJ_LABELS[s],
+      avg: counts[s] > 0 ? +(sums[s] / counts[s]).toFixed(1) : 0,
+      count: counts[s]
+    }));
+  }
+
+  // 8) KPIs
+  const totalPct = filteredTests.reduce((s, t) => s + parsePct(t.markspercent), 0);
+  const scoredTests = filteredTests.filter(t => parsePct(t.markspercent) > 0).length;
+  const totalStudents = filters.batch
+    ? studentList.filter(s => s.batch === filters.batch).length
+    : accStudents.size;
+
+  const bestBatch = batchList[0] || null;
+  const bottomBatch = batchList[batchList.length - 1] || null;
+  const graphBatch = filters.batch || (bestBatch ? bestBatch.batch : null);
+
+  return {
+    kpis: {
+      centers: centers,
+      totalBatches: filters.batch ? 1 : accBatches.size,
+      totalStudents: totalStudents,
+      totalFaculty: accFaculty.size,
+      avgScore: scoredTests > 0 ? +(totalPct / scoredTests).toFixed(1) : 0
+    },
+    toppers: studentList.slice(0, 5),
+    bottom: studentList.slice(-5).reverse(),
+    bestBatch: bestBatch ? { ...bestBatch, topStudents: topStudentsOf(bestBatch.batch, 3) } : null,
+    bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
+    subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
+    filterOptions: {
+      centers: allCenters(),
+      streams: [...new Set(DATA.tests.map(t => t.stream).filter(Boolean))].sort(),
+      batches: [...accBatches].sort()
+    }
+  };
+}
+/* ===== home.js ===== */
+// ============================================================
+//  home.js — UNIFIED HOME VIEW
+//  Renders the single Home screen: filter panel, KPI cards,
+//  topper/bottom students, best/bottom batches, and the
+//  per-subject average graph. All data comes from published CSVs
+//  via data.js (no backend data calls).
+//
+//  Depends on: core.js (user, showLoading, hideLoading, esc),
+//              data.js (loadData, computeHome, accessibleCenters)
+// ============================================================
+
+let homeFilters = { centers: [], stream: '', batch: '', dateFrom: '', dateTo: '' };
+
+// ── LOAD + RENDER ───────────────────────────────────
+async function loadHome() {
+  showLoading();
+  try {
+    await loadData();
+    // Default center selection based on role
+    if (homeFilters.centers.length === 0) {
+      homeFilters.centers = accessibleCenters();
+    }
+    populateHomeFilters();
+    renderHome();
+  } catch (e) {
+    console.error('Home error:', e);
+    const el = document.getElementById('homeError');
+    if (el) { el.textContent = 'Data load failed: ' + e.message; el.classList.add('show'); }
+  }
+  hideLoading();
+}
+
+function populateHomeFilters() {
+  // Center dropdown (role-scoped)
+  const centers = accessibleCenters();
+  fillSelect('homeFilterCenter', centers, 'All Centers');
+  const centerSel = document.getElementById('homeFilterCenter');
+  // If exactly one accessible center, default to it
+  if (centers.length === 1) {
+    centerSel.value = centers[0];
+    homeFilters.centers = centers;
+  }
+
+  // Stream/class dropdown — populated after compute (needs all streams)
+  // Batch dropdown — populated after compute
+}
+
+function renderHome() {
+  const result = computeHome(homeFilters);
+
+  // ── Filters: streams + batches (from result) ──
+  fillSelect('homeFilterStream', result.filterOptions.streams, 'All Classes');
+  fillSelect('homeFilterBatch', result.filterOptions.batches, 'All Batches');
+  if (homeFilters.stream) document.getElementById('homeFilterStream').value = homeFilters.stream;
+  if (homeFilters.batch) document.getElementById('homeFilterBatch').value = homeFilters.batch;
+
+  // ── KPI cards ──
+  const k = result.kpis;
+  document.getElementById('homeKpiCenter').textContent = k.centers.length === 1 ? k.centers[0] : (k.centers.length + ' Centers');
+  document.getElementById('homeKpiBatches').textContent = k.totalBatches.toLocaleString();
+  document.getElementById('homeKpiStudents').textContent = k.totalStudents.toLocaleString();
+  document.getElementById('homeKpiFaculty').textContent = k.totalFaculty.toLocaleString();
+  document.getElementById('homeKpiAvg').textContent = k.avgScore + '%';
+
+  // ── Toppers ──
+  renderStudentTable('homeTopperBody', result.toppers);
+  // ── Bottom ──
+  renderStudentTable('homeBottomBody', result.bottom);
+
+  // ── Best / Bottom batch ──
+  renderBatchCard('homeBestBatch', result.bestBatch, true);
+  renderBatchCard('homeBottomBatch', result.bottomBatch, false);
+
+  // ── Subject graph ──
+  renderSubjectGraph(result.subjectGraph);
+}
+
+// Which subject columns to show (Faculty → own subjects only)
+function visibleSubjects() {
+  if (user.level >= 2) return SUBJ_NAMES;
+  const subs = facultySubjects(user.email);
+  return subs.length ? subs : SUBJ_NAMES;
+}
+
+function renderStudentTable(bodyId, students) {
+  const subs = visibleSubjects();
+  // Dynamic subject header (Faculty sees only own subjects)
+  const head = document.getElementById(bodyId === 'homeTopperBody' ? 'homeTopperHead' : 'homeBottomHead');
+  if (head) {
+    head.innerHTML = '<tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th>' +
+      '<th class="text-center">Avg %</th>' +
+      subs.map(s => '<th class="text-center">' + SUBJ_LABELS[s] + '</th>').join('') + '</tr>';
+  }
+  const body = document.getElementById(bodyId);
+  body.innerHTML = students.map((s, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><div class="stu-name">${esc(s.name || '—')}</div><div class="stu-meta">${esc(s.regno)}</div></td>
+      <td>${esc(s.stream || '—')}</td>
+      <td>${esc(s.batch || '—')}</td>
+      <td class="text-center"><span class="status-badge ${scoreBadge(s.avg)}">${s.avg}%</span></td>
+      ${subs.map(sub => `<td class="text-center">${s[sub] > 0 ? s[sub] : '—'}</td>`).join('')}
+    </tr>
+  `).join('') || '<tr><td colspan="' + (5 + subs.length) + '" class="empty-msg"><p>No data</p></td></tr>';
+}
+
+function renderBatchCard(id, batch, isBest) {
+  const el = document.getElementById(id);
+  if (!batch) { el.innerHTML = '<div class="empty-msg"><p>No data</p></div>'; return; }
+  const badge = isBest ? 'status-excellent' : 'status-poor';
+  const label = isBest ? 'Top Batch' : 'Bottom Batch';
+  el.innerHTML = `
+    <div class="batch-card-head">
+      <div>
+        <div class="batch-card-name">${esc(batch.batch)}</div>
+        <div class="batch-card-label">${label}</div>
+      </div>
+      <span class="status-badge ${badge}">${batch.avg}%</span>
+    </div>
+    <div class="batch-card-students">
+      ${batch.topStudents.map((s, i) => `
+        <div class="batch-stu-row">
+          <span class="batch-stu-rank">${i + 1}</span>
+          <span class="batch-stu-name">${esc(s.name || '—')}</span>
+          <span class="status-badge ${scoreBadge(s.avg)}">${s.avg}%</span>
+        </div>
+      `).join('') || '<div class="empty-msg"><p>No students</p></div>'}
+    </div>
+  `;
+}
+
+function renderSubjectGraph(graph) {
+  const wrap = document.getElementById('homeSubjectGraph');
+  if (!graph) { wrap.innerHTML = '<div class="empty-msg"><p>No data</p></div>'; return; }
+  const subs = visibleSubjects();
+  const max = Math.max(1, ...graph.subjects.filter(s => subs.includes(s.subject.toLowerCase())).map(s => s.avg));
+  wrap.innerHTML = `
+    <div class="graph-title">Subject Averages — <strong>${esc(graph.batch)}</strong></div>
+    <div class="subject-bars">
+      ${graph.subjects.filter(s => subs.includes(s.subject.toLowerCase())).map(s => `
+        <div class="subject-bar-row">
+          <div class="subject-bar-label">${s.subject}</div>
+          <div class="subject-bar-track">
+            <div class="subject-bar-fill" style="width:${Math.round((s.avg / max) * 100)}%"></div>
+          </div>
+          <div class="subject-bar-value">${s.avg}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// ── FILTER HANDLERS ─────────────────────────────────
+function onHomeCenterChange() {
+  const sel = document.getElementById('homeFilterCenter');
+  homeFilters.centers = sel.value ? [sel.value] : accessibleCenters();
+  homeFilters.batch = '';
+  renderHome();
+}
+function onHomeStreamChange() {
+  homeFilters.stream = document.getElementById('homeFilterStream').value;
+  homeFilters.batch = '';
+  renderHome();
+}
+function onHomeBatchChange() {
+  homeFilters.batch = document.getElementById('homeFilterBatch').value;
+  renderHome();
+}
+function onHomeDateChange() {
+  homeFilters.dateFrom = document.getElementById('homeDateFrom').value;
+  homeFilters.dateTo = document.getElementById('homeDateTo').value;
+  renderHome();
+}
+function resetHomeFilters() {
+  homeFilters = { centers: accessibleCenters(), stream: '', batch: '', dateFrom: '', dateTo: '' };
+  document.getElementById('homeFilterCenter').value = '';
+  document.getElementById('homeFilterStream').value = '';
+  document.getElementById('homeFilterBatch').value = '';
+  document.getElementById('homeDateFrom').value = '';
+  document.getElementById('homeDateTo').value = '';
+  renderHome();
 }
 /* ===== dashboard.js ===== */
 // ============================================================
