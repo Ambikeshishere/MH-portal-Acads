@@ -77,6 +77,11 @@ function renderHome() {
   document.getElementById('homeKpiAvg').textContent = k.avgScore + '%';
   document.getElementById('homeKpiAvgStudents').textContent = (k.avgStudents || 0).toLocaleString();
   document.getElementById('homeKpiAbsent').textContent = (k.absentStudents || 0).toLocaleString();
+  // Small "% of total students" hint under Average & Absent students
+  const totalStu = k.totalStudents || 0;
+  const pct = n => totalStu > 0 ? ((n / totalStu) * 100).toFixed(1) + '% of students' : '';
+  document.getElementById('homeKpiAvgStudentsPct').textContent = pct(k.avgStudents || 0);
+  document.getElementById('homeKpiAbsentPct').textContent = pct(k.absentStudents || 0);
 
   // ── Toppers ──
   renderStudentTable('homeTopperBody', result.toppers, parseInt(document.getElementById('topperN').value, 10) || 10);

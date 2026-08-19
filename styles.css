@@ -613,6 +613,7 @@ body {
 
 .stat-number { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--pw-text); line-height: 1.1; letter-spacing: -0.5px; }
 .stat-label { font-size: 10px; color: var(--pw-text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 3px; }
+.stat-sub { font-size: 11px; font-weight: 600; color: var(--pw-text-secondary); opacity: 0.85; margin: 2px 0; }
 
 /* Reference layout: small label on top, big value below */
 .stat-info { display: flex; flex-direction: column-reverse; min-width: 0; }
