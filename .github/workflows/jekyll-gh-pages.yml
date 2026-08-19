@@ -35,6 +35,10 @@ jobs:
         with:
           source: ./
           destination: ./_site
+      # Serve the self-contained standalone build as the site homepage
+      # (it bundles core/auth/data/home/student + all views inline).
+      - name: Use standalone as homepage
+        run: cp index-standalone.html _site/index.html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
 

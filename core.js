@@ -71,6 +71,24 @@ function navigate(view) {
   }
 }
 
+// ── DATA RELOAD ────────────────────────────────────
+// Force-refetch the published CSVs and re-render the current view.
+async function reloadData() {
+  showLoading();
+  try {
+    if (typeof loadData === 'function') await loadData(true);
+    if (currentView === 'home') renderHome();
+    else if (currentView === 'student') loadStuView();
+    else if (currentView === 'dashboard') loadDashboard();
+    else if (currentView === 'batches') loadBatches();
+    else if (currentView === 'faculty') loadFaculty();
+    else if (currentView === 'students') loadStudents();
+  } catch (e) {
+    console.error('Reload error:', e);
+  }
+  hideLoading();
+}
+
 // ── API HELPERS ────────────────────────────────────
 function apiGet(action, params = {}) {
   const qs = new URLSearchParams({ action, ...params }).toString();
