@@ -217,7 +217,6 @@ function initApp() {
   document.getElementById('userAvatar').textContent = user.email.charAt(0).toUpperCase();
   document.getElementById('topbarEmail').textContent = user.email;
   document.getElementById('topbarRole').textContent = user.role;
-  setupCenterSwitcher();
   dashData = null;
   batchesData = [];
   facultyData = [];
@@ -225,108 +224,31 @@ function initApp() {
   navigate('home');
 }
 
-function setupCenterSwitcher() {
-  const switcher = document.getElementById('centerSwitcher');
-  // ADMIN / RAH / RAOM (level >= 5): ALWAYS see all centers, no matter what
-  // they select. The backend ignores the center filter for these levels, so
-  // the switcher is shown for context but never restricts the data.
-  if (user.level >= 5) {
-    switcher.style.display = 'flex';
-    loadAllCentersForSwitcher();
-    return;
-  }
-  const centers = user.centers && user.centers.length ? user.centers : (user.center ? user.center.split(',') : []);
-  if (centers.length > 1) {
-    switcher.style.display = 'flex';
-    // Ensure user.center holds the comma-separated selected centers
-    if (!user.center || user.center === '') user.center = centers.join(',');
-    renderCenterCheckboxes(centers);
-  } else {
-    switcher.style.display = 'none';
-  }
-}
-
-// For level >= 5, populate the switcher with ALL available centers so the
-// user can see/select them, but the backend always returns the whole region.
-async function loadAllCentersForSwitcher() {
-  try {
-    const resp = await apiGet('getSignupOptions');
-    if (resp.success) {
-      user.centers = resp.data.centers;
-      user.center = resp.data.centers.join(',');
-      renderCenterCheckboxes(resp.data.centers);
-    }
-  } catch (_) {}
-}
-
-function renderCenterCheckboxes(centers) {
-  const list = document.getElementById('centerCheckboxList');
-  const selected = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
-  list.innerHTML = centers.map(c => {
-    const checked = selected.includes(c) ? 'checked' : '';
-    return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + ' onchange="onCenterToggle()"> <span>' + esc(c) + '</span></label>';
-  }).join('');
-  updateCenterBtnLabel(selected);
-}
-
-function onCenterToggle() {
-  let selected = [];
-  document.querySelectorAll('#centerCheckboxList input:checked').forEach(i => selected.push(i.value));
-  if (selected.length === 0) selected = (user.centers || []).slice(); // empty = all
-  user.center = selected.join(',');
-  localStorage.setItem('pw_user', JSON.stringify(user));
-  updateCenterBtnLabel(selected);
-  reloadAllData();
-}
-
-function updateCenterBtnLabel(selected) {
-  const label = document.getElementById('centerBtnLabel');
-  // ADMIN / RAH / RAOM always see the whole region — label stays "All Centers"
-  if (user.level >= 5) { label.textContent = 'All Centers'; return; }
-  const total = (user.centers || []).length;
-  if (selected.length >= total) label.textContent = 'All Centers';
-  else if (selected.length === 1) label.textContent = selected[0];
-  else label.textContent = selected.length + ' Centers';
-}
-
-function toggleCenterDropdown() {
-  const dd = document.getElementById('centerDropdown');
-  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
-}
-
-function selectAllCenters() {
-  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = true);
-  onCenterToggle();
-}
-
-function clearCenters() {
-  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = false);
-  onCenterToggle();
-}
-
-function reloadAllData() {
-  dashData = null;
-  batchesData = [];
-  facultyData = [];
-  studentsData = [];
-  navigate(currentView);
-}
-
-// ── CENTER CHANGE REQUEST ─────────────────────────────
+// ── CENTER ACCESS REQUEST ─────────────────────────
 async function openCenterChange() {
   hideAlert('ccMessage');
   document.getElementById('ccMessage').classList.remove('show');
-  document.getElementById('ccCurrentCenter').textContent = (user.center || user.centers || []).join(', ') || '—';
-  document.getElementById('centerChangeModal').style.display = 'flex';
+  // Pre-fill the requester's details (mail id / pw id already known)
+  document.getElementById('reqEmail').value = user.email || '';
+  document.getElementById('reqPwid').value = user.pwid || '';
+  document.getElementById('reqRemark').value = '';
   document.getElementById('ccSubmitBtn').disabled = false;
   document.getElementById('ccSubmitBtn').textContent = 'Submit Request';
+  document.getElementById('centerChangeModal').style.display = 'flex';
+  // Populate center list from local data first (works offline), fall back to API.
+  const localCenters = (typeof allCenters === 'function') ? allCenters() : [];
+  const current = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (localCenters.length) {
+    document.getElementById('reqCenter').innerHTML = localCenters.map(c => {
+      return '<option value="' + esc(c) + '"' + (current.includes(c) ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+    return;
+  }
   try {
     const resp = await apiGet('getSignupOptions');
     if (resp.success) {
-      const current = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
-      document.getElementById('ccCenterList').innerHTML = resp.data.centers.map(c => {
-        const checked = current.includes(c) ? 'checked' : '';
-        return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + '> <span>' + esc(c) + '</span></label>';
+      document.getElementById('reqCenter').innerHTML = resp.data.centers.map(c => {
+        return '<option value="' + esc(c) + '"' + (current.includes(c) ? ' selected' : '') + '>' + esc(c) + '</option>';
       }).join('');
     }
   } catch (_) {}
@@ -337,20 +259,21 @@ function closeCenterChange() {
 }
 
 async function submitCenterChange() {
-  const selected = [];
-  document.querySelectorAll('#ccCenterList input:checked').forEach(i => selected.push(i.value));
+  const email = document.getElementById('reqEmail').value.trim();
+  const pwid = document.getElementById('reqPwid').value.trim();
+  const center = document.getElementById('reqCenter').value;
+  const remark = document.getElementById('reqRemark').value.trim();
   const msgEl = document.getElementById('ccMessage');
   msgEl.classList.remove('error');
-  if (selected.length === 0) { showError('ccMessage', 'Select at least one center'); msgEl.classList.add('error'); return; }
+  if (!center) { showError('ccMessage', 'Select a center'); msgEl.classList.add('error'); return; }
   const btn = document.getElementById('ccSubmitBtn');
   btn.disabled = true;
   btn.textContent = 'Submitting...';
   try {
-    const resp = await apiGet('requestCenterChange', { email: user.email, newCenter: selected.join(',') });
+    const resp = await apiGet('requestCenterChange', { email, pwid, newCenter: center, remark });
     if (resp.success) {
       msgEl.textContent = resp.message;
       msgEl.classList.add('show');
-      document.getElementById('ccCenterList').innerHTML = '';
       btn.textContent = 'Submitted';
     } else {
       showError('ccMessage', resp.message);

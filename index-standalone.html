@@ -222,22 +222,11 @@
       </div>
     </div>
     <div class="topnav-right">
-      <div class="center-switcher" id="centerSwitcher" style="display:none">
-        <button type="button" class="center-btn" id="centerBtn" onclick="toggleCenterDropdown()">
-          <span id="centerBtnLabel">Centers</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="center-dropdown" id="centerDropdown" style="display:none">
-          <div class="center-dd-header">
-            <span>Select Centers</span>
-            <div class="center-dd-actions">
-              <button type="button" onclick="selectAllCenters()">All</button>
-              <button type="button" onclick="clearCenters()">Clear</button>
-            </div>
-          </div>
-          <div class="center-dd-list" id="centerCheckboxList"></div>
-        </div>
-      </div>
+      <span class="live-pill" title="Live data"><span class="live-dot"></span> Live</span>
+      <button class="btn-request-access" onclick="openCenterChange()" title="Request access to another center">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span>Request Access</span>
+      </button>
       <button class="btn-change-center" id="reloadDataBtn" onclick="reloadData()" title="Reload Data">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/><polyline points="21 3 21 9 15 9"/></svg>
         <span>Reload Data</span>
@@ -259,17 +248,33 @@
     </div>
   </header>
 
-  <!-- CENTER CHANGE MODAL -->
+  <!-- CENTER ACCESS REQUEST MODAL -->
   <div class="modal-overlay" id="centerChangeModal" style="display:none">
     <div class="modal">
       <div class="modal-header">
-        <h3>Request Center Change</h3>
+        <h3>Request Center Access</h3>
         <button type="button" class="modal-close" onclick="closeCenterChange()">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="cc-current">Current center(s): <strong id="ccCurrentCenter"></strong></p>
-        <label class="cc-label">Select new center(s) — you can pick multiple</label>
-        <div class="cc-center-list" id="ccCenterList"></div>
+        <p class="cc-current">Need access to another center? Fill this form and the admin will approve it.</p>
+        <div class="req-form">
+          <div class="req-field">
+            <label class="cc-label">Mail ID</label>
+            <input type="email" class="req-input" id="reqEmail" placeholder="you@pw.live">
+          </div>
+          <div class="req-field">
+            <label class="cc-label">PW ID</label>
+            <input type="text" class="req-input" id="reqPwid" placeholder="PWID">
+          </div>
+          <div class="req-field">
+            <label class="cc-label">Center</label>
+            <select class="req-input" id="reqCenter"></select>
+          </div>
+          <div class="req-field">
+            <label class="cc-label">Remark</label>
+            <textarea class="req-input req-textarea" id="reqRemark" placeholder="Why do you need access to this center?"></textarea>
+          </div>
+        </div>
         <div class="cc-message" id="ccMessage"></div>
       </div>
       <div class="modal-footer">
@@ -285,17 +290,6 @@
     <!-- HOME VIEW (unified) -->
     <div id="view-home" class="view active">
       <div class="home-error" id="homeError"></div>
-
-      <!-- PAGE HEADER -->
-      <div class="page-head">
-        <div class="page-head-left">
-          <h1 class="page-title">Performance Overview</h1>
-          <p class="page-subtitle">Real-time analytics across all centers &amp; batches</p>
-        </div>
-        <div class="page-head-right">
-          <span class="live-pill"><span class="live-dot"></span> Live</span>
-        </div>
-      </div>
 
       <!-- FILTER PANEL -->
       <div class="home-filters">
@@ -992,7 +986,6 @@ function initApp() {
   document.getElementById('userAvatar').textContent = user.email.charAt(0).toUpperCase();
   document.getElementById('topbarEmail').textContent = user.email;
   document.getElementById('topbarRole').textContent = user.role;
-  setupCenterSwitcher();
   dashData = null;
   batchesData = [];
   facultyData = [];
@@ -1000,108 +993,31 @@ function initApp() {
   navigate('home');
 }
 
-function setupCenterSwitcher() {
-  const switcher = document.getElementById('centerSwitcher');
-  // ADMIN / RAH / RAOM (level >= 5): ALWAYS see all centers, no matter what
-  // they select. The backend ignores the center filter for these levels, so
-  // the switcher is shown for context but never restricts the data.
-  if (user.level >= 5) {
-    switcher.style.display = 'flex';
-    loadAllCentersForSwitcher();
-    return;
-  }
-  const centers = user.centers && user.centers.length ? user.centers : (user.center ? user.center.split(',') : []);
-  if (centers.length > 1) {
-    switcher.style.display = 'flex';
-    // Ensure user.center holds the comma-separated selected centers
-    if (!user.center || user.center === '') user.center = centers.join(',');
-    renderCenterCheckboxes(centers);
-  } else {
-    switcher.style.display = 'none';
-  }
-}
-
-// For level >= 5, populate the switcher with ALL available centers so the
-// user can see/select them, but the backend always returns the whole region.
-async function loadAllCentersForSwitcher() {
-  try {
-    const resp = await apiGet('getSignupOptions');
-    if (resp.success) {
-      user.centers = resp.data.centers;
-      user.center = resp.data.centers.join(',');
-      renderCenterCheckboxes(resp.data.centers);
-    }
-  } catch (_) {}
-}
-
-function renderCenterCheckboxes(centers) {
-  const list = document.getElementById('centerCheckboxList');
-  const selected = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
-  list.innerHTML = centers.map(c => {
-    const checked = selected.includes(c) ? 'checked' : '';
-    return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + ' onchange="onCenterToggle()"> <span>' + esc(c) + '</span></label>';
-  }).join('');
-  updateCenterBtnLabel(selected);
-}
-
-function onCenterToggle() {
-  let selected = [];
-  document.querySelectorAll('#centerCheckboxList input:checked').forEach(i => selected.push(i.value));
-  if (selected.length === 0) selected = (user.centers || []).slice(); // empty = all
-  user.center = selected.join(',');
-  localStorage.setItem('pw_user', JSON.stringify(user));
-  updateCenterBtnLabel(selected);
-  reloadAllData();
-}
-
-function updateCenterBtnLabel(selected) {
-  const label = document.getElementById('centerBtnLabel');
-  // ADMIN / RAH / RAOM always see the whole region — label stays "All Centers"
-  if (user.level >= 5) { label.textContent = 'All Centers'; return; }
-  const total = (user.centers || []).length;
-  if (selected.length >= total) label.textContent = 'All Centers';
-  else if (selected.length === 1) label.textContent = selected[0];
-  else label.textContent = selected.length + ' Centers';
-}
-
-function toggleCenterDropdown() {
-  const dd = document.getElementById('centerDropdown');
-  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
-}
-
-function selectAllCenters() {
-  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = true);
-  onCenterToggle();
-}
-
-function clearCenters() {
-  document.querySelectorAll('#centerCheckboxList input').forEach(i => i.checked = false);
-  onCenterToggle();
-}
-
-function reloadAllData() {
-  dashData = null;
-  batchesData = [];
-  facultyData = [];
-  studentsData = [];
-  navigate(currentView);
-}
-
-// ── CENTER CHANGE REQUEST ─────────────────────────────
+// ── CENTER ACCESS REQUEST ─────────────────────────
 async function openCenterChange() {
   hideAlert('ccMessage');
   document.getElementById('ccMessage').classList.remove('show');
-  document.getElementById('ccCurrentCenter').textContent = (user.center || user.centers || []).join(', ') || '—';
-  document.getElementById('centerChangeModal').style.display = 'flex';
+  // Pre-fill the requester's details (mail id / pw id already known)
+  document.getElementById('reqEmail').value = user.email || '';
+  document.getElementById('reqPwid').value = user.pwid || '';
+  document.getElementById('reqRemark').value = '';
   document.getElementById('ccSubmitBtn').disabled = false;
   document.getElementById('ccSubmitBtn').textContent = 'Submit Request';
+  document.getElementById('centerChangeModal').style.display = 'flex';
+  // Populate center list from local data first (works offline), fall back to API.
+  const localCenters = (typeof allCenters === 'function') ? allCenters() : [];
+  const current = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (localCenters.length) {
+    document.getElementById('reqCenter').innerHTML = localCenters.map(c => {
+      return '<option value="' + esc(c) + '"' + (current.includes(c) ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+    return;
+  }
   try {
     const resp = await apiGet('getSignupOptions');
     if (resp.success) {
-      const current = (user.center || '').split(',').map(s => s.trim()).filter(Boolean);
-      document.getElementById('ccCenterList').innerHTML = resp.data.centers.map(c => {
-        const checked = current.includes(c) ? 'checked' : '';
-        return '<label class="center-opt"><input type="checkbox" value="' + esc(c) + '" ' + checked + '> <span>' + esc(c) + '</span></label>';
+      document.getElementById('reqCenter').innerHTML = resp.data.centers.map(c => {
+        return '<option value="' + esc(c) + '"' + (current.includes(c) ? ' selected' : '') + '>' + esc(c) + '</option>';
       }).join('');
     }
   } catch (_) {}
@@ -1112,20 +1028,21 @@ function closeCenterChange() {
 }
 
 async function submitCenterChange() {
-  const selected = [];
-  document.querySelectorAll('#ccCenterList input:checked').forEach(i => selected.push(i.value));
+  const email = document.getElementById('reqEmail').value.trim();
+  const pwid = document.getElementById('reqPwid').value.trim();
+  const center = document.getElementById('reqCenter').value;
+  const remark = document.getElementById('reqRemark').value.trim();
   const msgEl = document.getElementById('ccMessage');
   msgEl.classList.remove('error');
-  if (selected.length === 0) { showError('ccMessage', 'Select at least one center'); msgEl.classList.add('error'); return; }
+  if (!center) { showError('ccMessage', 'Select a center'); msgEl.classList.add('error'); return; }
   const btn = document.getElementById('ccSubmitBtn');
   btn.disabled = true;
   btn.textContent = 'Submitting...';
   try {
-    const resp = await apiGet('requestCenterChange', { email: user.email, newCenter: selected.join(',') });
+    const resp = await apiGet('requestCenterChange', { email, pwid, newCenter: center, remark });
     if (resp.success) {
       msgEl.textContent = resp.message;
       msgEl.classList.add('show');
-      document.getElementById('ccCenterList').innerHTML = '';
       btn.textContent = 'Submitted';
     } else {
       showError('ccMessage', resp.message);

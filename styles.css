@@ -389,6 +389,14 @@ body {
 }
 .btn-change-center:hover { background: rgba(226,27,56,0.22); color: #F43F5E; }
 
+.btn-request-access {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--pw-green-bright);
+  padding: 8px 13px; border-radius: 12px; cursor: pointer; font-size: 12px; font-weight: 600;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn-request-access:hover { background: rgba(34,197,94,0.18); color: #4ADE80; }
+
 .topnav-user { display: flex; align-items: center; gap: 10px; }
 .topnav-user-name { font-size: 13px; color: rgba(255,255,255,0.7); font-weight: 500; }
 .topnav-user-info { text-align: right; }
@@ -563,13 +571,17 @@ body {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
 }
-.data-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.data-table { width: 100%; border-collapse: collapse; min-width: 0; }
 .data-table thead { background: rgba(255,255,255,0.03); }
 .data-table th {
-  padding: 14px 16px; font-size: 11px; font-weight: 600; color: var(--pw-text-secondary);
+  padding: 12px 12px; font-size: 11px; font-weight: 600; color: var(--pw-text-secondary);
   text-transform: uppercase; letter-spacing: 0.5px; text-align: left; white-space: nowrap;
 }
-.data-table td { padding: 14px 16px; font-size: 14px; border-top: 1px solid var(--pw-border); color: var(--pw-text); }
+.data-table td {
+  padding: 12px 12px; font-size: clamp(10px, 1.05vw, 14px);
+  border-top: 1px solid var(--pw-border); color: var(--pw-text);
+  min-width: 0; word-break: break-word;
+}
 .data-table tbody tr { transition: background 0.12s; }
 .data-table tbody tr:hover { background: rgba(255,255,255,0.03); }
 .text-center { text-align: center; }
@@ -706,6 +718,20 @@ body {
 .cc-message { margin-top: 12px; font-size: 13px; color: #4ADE80; }
 .cc-message.show { display: block; }
 .cc-message.error { color: #F43F5E; }
+
+/* Center access request form */
+.req-form { display: flex; flex-direction: column; gap: 14px; }
+.req-field { display: flex; flex-direction: column; gap: 6px; }
+.req-input {
+  width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--pw-border); background: var(--pw-dark);
+  color: var(--pw-text); font-size: 13px; font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.req-input:focus { outline: none; border-color: var(--pw-red); box-shadow: 0 0 0 3px rgba(226,27,56,0.15); }
+.req-input::placeholder { color: var(--pw-text-muted); }
+.req-textarea { min-height: 84px; resize: vertical; }
+[data-theme="light"] .req-input { background: #fff; border-color: rgba(0,0,0,0.15); }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--pw-border); }
 .btn-cancel { background: rgba(255,255,255,0.06); border: 1px solid var(--pw-border); color: rgba(255,255,255,0.7); padding: 9px 18px; border-radius: 12px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
 .btn-cancel:hover { background: rgba(255,255,255,0.1); }
@@ -725,6 +751,8 @@ body {
   .login-left { display: none; }
   .login-right { flex: 1; }
   .topnav-user-name { display: none; }
+  .btn-request-access span, .btn-change-center span { display: none; }
+  .btn-request-access, .btn-change-center { padding: 9px; }
 }
 
 @media (max-width: 768px) {
@@ -745,6 +773,10 @@ body {
   .main-content { padding: 0 16px; }
   .login-card { padding: 28px 22px; }
   .login-right { padding: 20px; }
+  .data-table th, .data-table td { padding: 6px 7px; }
+  .data-table th { font-size: 9px; }
+  .data-table td { font-size: 10px; }
+  .batch-center { display: inline; }
 }
 
 @media (max-width: 420px) {
@@ -805,9 +837,9 @@ body {
 .download-menu button:hover { background: rgba(226,27,56,0.1); color: var(--pw-red-bright); }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-/* Fixed-height scrollable tables with a frozen, opaque header
-   (used for Topper / Bottom student lists — 10 rows visible). */
-.table-scroll--fixed { max-height: 440px; overflow-y: auto; }
+/* Tables render fully (no vertical scroll limit) — all rows visible.
+   Wide tables still scroll horizontally inside their own container. */
+.table-scroll--fixed { overflow-x: auto; overflow-y: visible; }
 .table-scroll--fixed thead th {
   position: sticky; top: 0; z-index: 2;
   background: var(--pw-card); /* opaque so rows scroll under it cleanly */
@@ -826,7 +858,7 @@ body {
 /* Small center name shown next to a batch name */
 .batch-center {
   font-size: 10px; font-weight: 500; color: var(--pw-text-secondary);
-  white-space: nowrap; margin-left: 2px;
+  white-space: normal; margin-left: 2px;
 }
 
 /* Batch cards (best / bottom) */
