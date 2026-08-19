@@ -5,6 +5,38 @@
 //              showError, hideAlert, esc, user state)
 // ============================================================
 
+// ── AUTH SCREEN ANIMATIONS ─────────────────────────
+// Count-up animation for .stat-num[data-count] chips on the auth screens
+function animateCounters() {
+  document.querySelectorAll('.stat-num[data-count]').forEach(el => {
+    const target = parseInt(el.dataset.count, 10) || 0;
+    const dur = 1400;
+    const t0 = performance.now();
+    function tick(now) {
+      const p = Math.min((now - t0) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased).toLocaleString('en-IN');
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+// Forgot-password step indicator (1 = email, 2 = OTP, 3 = new password)
+function setForgotStep(step) {
+  document.querySelectorAll('#forgotSteps .step-dot').forEach(d => {
+    d.classList.toggle('active', parseInt(d.dataset.step, 10) <= step);
+  });
+}
+
+// Run counter animation once the auth screens are in the DOM
+// (covers both the standalone build and loader.js multi-file mode)
+function bootAuthAnimations() {
+  if (document.querySelector('.stat-num[data-count]')) animateCounters();
+}
+document.addEventListener('DOMContentLoaded', bootAuthAnimations);
+document.addEventListener('pw:html-ready', bootAuthAnimations);
+
 // ── LOGIN ──────────────────────────────────────────
 async function handleLogin(e) {
   e.preventDefault();
@@ -49,6 +81,7 @@ async function handleForgot(e) {
       document.getElementById('forgotSuccess').textContent = 'OTP sent to ' + resp.data.email;
       document.getElementById('forgotSuccess').classList.add('show');
       document.getElementById('otpForm').style.display = 'block';
+      setForgotStep(2);
     } else {
       showError('forgotError', resp.message);
     }
@@ -69,6 +102,7 @@ async function handleVerifyOTP(e) {
       document.getElementById('forgotSuccess').classList.add('show');
       document.getElementById('otpForm').style.display = 'none';
       document.getElementById('resetForm').style.display = 'block';
+      setForgotStep(3);
     } else { showError('forgotError', resp.message); }
   } catch (_) { showError('forgotError', 'Connection error'); }
 }
@@ -90,6 +124,7 @@ async function handleResetPassword(e) {
       setTimeout(() => {
         document.getElementById('resetForm').style.display = 'none';
         document.getElementById('otpForm').style.display = 'none';
+        setForgotStep(1);
         showScreen('loginScreen');
       }, 1500);
     } else { showError('forgotError', resp.message); }

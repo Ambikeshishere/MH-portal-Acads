@@ -37,6 +37,8 @@ function toggleTheme() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // Reset the forgot-password step indicator when the screen reopens
+  if (id === 'forgotScreen' && typeof setForgotStep === 'function') setForgotStep(1);
 }
 
 // ── NAVIGATION ─────────────────────────────────────

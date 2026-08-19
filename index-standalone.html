@@ -25,10 +25,18 @@
 <div id="loginScreen" class="screen active">
   <div class="login-wrapper">
     <div class="login-left">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
       <div class="login-brand">
         <img src="assets/pw-logo.webp" alt="Physics Wallah" class="pw-logo-hero">
         <h1>Physics Wallah</h1>
         <p class="login-tagline">Maharashtra Region — Faculty Performance Portal</p>
+      </div>
+      <div class="login-stats">
+        <div class="stat-chip"><span class="stat-num" data-count="33601">0</span><span class="stat-label">Students Tracked</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="640">0</span><span class="stat-label">Batches Live</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="402">0</span><span class="stat-label">Faculty Onboard</span></div>
       </div>
       <div class="login-features">
         <div class="feature-item"><span class="feat-icon">&#128202;</span><span>Track Batch Performance</span></div>
@@ -42,7 +50,7 @@
         <div class="login-card-logo">
           <img src="assets/pw-logo.webp" alt="PW" class="pw-logo-sm-login">
         </div>
-        <h2>Welcome Back</h2>
+        <h2><span class="grad-head">Welcome Back</span></h2>
         <p class="login-subtitle">Sign in to your dashboard</p>
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="input-group">
@@ -81,10 +89,18 @@
 <div id="forgotScreen" class="screen">
   <div class="login-wrapper">
     <div class="login-left">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
       <div class="login-brand">
         <img src="assets/pw-logo.webp" alt="Physics Wallah" class="pw-logo-hero">
         <h1>Physics Wallah</h1>
         <p class="login-tagline">Reset your password securely</p>
+      </div>
+      <div class="login-stats">
+        <div class="stat-chip"><span class="stat-num" data-count="33601">0</span><span class="stat-label">Students Tracked</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="640">0</span><span class="stat-label">Batches Live</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="402">0</span><span class="stat-label">Faculty Onboard</span></div>
       </div>
     </div>
     <div class="login-right">
@@ -92,8 +108,13 @@
         <div class="login-card-logo">
           <img src="assets/pw-logo.webp" alt="PW" class="pw-logo-sm-login">
         </div>
-        <h2>Forgot Password</h2>
-        <p class="login-subtitle">OTP will be sent to your registered email</p>
+        <h2><span class="grad-head">Forgot Password</span></h2>
+        <p class="login-subtitle">3 quick steps to get back in</p>
+        <div class="steps" id="forgotSteps">
+          <span class="step-dot active" data-step="1"></span>
+          <span class="step-dot" data-step="2"></span>
+          <span class="step-dot" data-step="3"></span>
+        </div>
         <form id="forgotForm" onsubmit="handleForgot(event)">
           <div class="input-group">
             <label>Email or PWID</label>
@@ -135,10 +156,18 @@
 <div id="signupScreen" class="screen">
   <div class="login-wrapper">
     <div class="login-left">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
       <div class="login-brand">
         <img src="assets/pw-logo.webp" alt="Physics Wallah" class="pw-logo-hero">
         <h1>Physics Wallah</h1>
         <p class="login-tagline">Create your account — approval required</p>
+      </div>
+      <div class="login-stats">
+        <div class="stat-chip"><span class="stat-num" data-count="33601">0</span><span class="stat-label">Students Tracked</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="640">0</span><span class="stat-label">Batches Live</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="402">0</span><span class="stat-label">Faculty Onboard</span></div>
       </div>
       <div class="login-features">
         <div class="feature-item"><span class="feat-icon">&#128197;</span><span>Your request goes to your reporting manager</span></div>
@@ -151,7 +180,7 @@
         <div class="login-card-logo">
           <img src="assets/pw-logo.webp" alt="PW" class="pw-logo-sm-login">
         </div>
-        <h2>Create Account</h2>
+        <h2><span class="grad-head">Create Account</span></h2>
         <p class="login-subtitle">Fill details — ID will be created after approval</p>
         <form id="signupForm" onsubmit="handleSignup(event)">
           <div class="input-group">
@@ -622,6 +651,8 @@ function toggleTheme() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // Reset the forgot-password step indicator when the screen reopens
+  if (id === 'forgotScreen' && typeof setForgotStep === 'function') setForgotStep(1);
 }
 
 // ── NAVIGATION ─────────────────────────────────────
@@ -788,6 +819,38 @@ document.addEventListener('pw:html-ready', () => {
 //              showError, hideAlert, esc, user state)
 // ============================================================
 
+// ── AUTH SCREEN ANIMATIONS ─────────────────────────
+// Count-up animation for .stat-num[data-count] chips on the auth screens
+function animateCounters() {
+  document.querySelectorAll('.stat-num[data-count]').forEach(el => {
+    const target = parseInt(el.dataset.count, 10) || 0;
+    const dur = 1400;
+    const t0 = performance.now();
+    function tick(now) {
+      const p = Math.min((now - t0) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased).toLocaleString('en-IN');
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+// Forgot-password step indicator (1 = email, 2 = OTP, 3 = new password)
+function setForgotStep(step) {
+  document.querySelectorAll('#forgotSteps .step-dot').forEach(d => {
+    d.classList.toggle('active', parseInt(d.dataset.step, 10) <= step);
+  });
+}
+
+// Run counter animation once the auth screens are in the DOM
+// (covers both the standalone build and loader.js multi-file mode)
+function bootAuthAnimations() {
+  if (document.querySelector('.stat-num[data-count]')) animateCounters();
+}
+document.addEventListener('DOMContentLoaded', bootAuthAnimations);
+document.addEventListener('pw:html-ready', bootAuthAnimations);
+
 // ── LOGIN ──────────────────────────────────────────
 async function handleLogin(e) {
   e.preventDefault();
@@ -832,6 +895,7 @@ async function handleForgot(e) {
       document.getElementById('forgotSuccess').textContent = 'OTP sent to ' + resp.data.email;
       document.getElementById('forgotSuccess').classList.add('show');
       document.getElementById('otpForm').style.display = 'block';
+      setForgotStep(2);
     } else {
       showError('forgotError', resp.message);
     }
@@ -852,6 +916,7 @@ async function handleVerifyOTP(e) {
       document.getElementById('forgotSuccess').classList.add('show');
       document.getElementById('otpForm').style.display = 'none';
       document.getElementById('resetForm').style.display = 'block';
+      setForgotStep(3);
     } else { showError('forgotError', resp.message); }
   } catch (_) { showError('forgotError', 'Connection error'); }
 }
@@ -873,6 +938,7 @@ async function handleResetPassword(e) {
       setTimeout(() => {
         document.getElementById('resetForm').style.display = 'none';
         document.getElementById('otpForm').style.display = 'none';
+        setForgotStep(1);
         showScreen('loginScreen');
       }, 1500);
     } else { showError('forgotError', resp.message); }
