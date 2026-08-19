@@ -408,11 +408,15 @@ function computeHome(filters) {
     for (const t of filteredTests) {
       if (t.current_batch !== batch) continue;
       const d = t._date;
-      if (!perTest[d]) perTest[d] = { scoreSum: 0, subjSum: {} };
-      perTest[d].scoreSum += parseNum(t.userscore);
-      for (const s of SUBJ_NAMES) {
-        const v = parseNum(t[s + '_marks']);
-        if (v > 0) { perTest[d].subjSum[s] = (perTest[d].subjSum[s] || 0) + v; hasSubj[s] = true; }
+      if (!perTest[d]) perTest[d] = { scoreSum: 0, count: 0, subjPctSum: {} };
+      const sc = parseNum(t.userscore);
+      perTest[d].scoreSum += sc;
+      if (sc > 0) {
+        perTest[d].count++;
+        for (const s of SUBJ_NAMES) {
+          const v = parseNum(t[s + '_marks']);
+          if (v > 0) { perTest[d].subjPctSum[s] = (perTest[d].subjPctSum[s] || 0) + (v / sc) * 100; hasSubj[s] = true; }
+        }
       }
     }
     // Only subjects that actually appear in this batch's tests
@@ -423,7 +427,8 @@ function computeHome(filters) {
       const d = perTest[date];
       const subjects = {};
       for (const s of subs) {
-        subjects[s] = d.scoreSum > 0 ? +(((d.subjSum[s] || 0) / d.scoreSum) * 100).toFixed(1) : 0;
+        // Average of per-student subject % (subject_marks/userscore*100)
+        subjects[s] = d.count > 0 ? +((d.subjPctSum[s] || 0) / d.count).toFixed(1) : 0;
       }
       return { date, score: d.scoreSum, subjects };
     });
