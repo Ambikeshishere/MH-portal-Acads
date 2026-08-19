@@ -79,9 +79,9 @@ function renderHome() {
   document.getElementById('homeKpiAbsent').textContent = (k.absentStudents || 0).toLocaleString();
 
   // ── Toppers ──
-  renderStudentTable('homeTopperBody', result.toppers);
+  renderStudentTable('homeTopperBody', result.toppers, parseInt(document.getElementById('topperN').value, 10) || 10);
   // ── Bottom ──
-  renderStudentTable('homeBottomBody', result.bottom);
+  renderStudentTable('homeBottomBody', result.bottom, parseInt(document.getElementById('bottomN').value, 10) || 10);
 
   // ── Best / Bottom batch ──
   renderBatchCard('homeBestBatch', result.bestBatch, true);
@@ -156,28 +156,41 @@ function visibleSubjects() {
   return subs.length ? subs : SUBJ_NAMES;
 }
 
-function renderStudentTable(bodyId, students) {
+function renderStudentTable(bodyId, students, n) {
   const subs = visibleSubjects();
   // Dynamic subject header (Faculty sees only own subjects)
   const head = document.getElementById(bodyId === 'homeTopperBody' ? 'homeTopperHead' : 'homeBottomHead');
   if (head) {
     head.innerHTML = '<tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th>' +
+      '<th class="text-center">Tests</th>' +
       '<th class="text-center">Avg %</th>' +
       subs.map(s => '<th class="text-center">' + SUBJ_LABELS[s] + '</th>').join('') + '</tr>';
   }
   const body = document.getElementById(bodyId);
-  // Render ALL rows — the scrollable container shows 10 at a time.
-  const rows = students || [];
+  // Show the top/bottom N students (default 10, user-adjustable).
+  const rows = (students || []).slice(0, n || 10);
   body.innerHTML = rows.map((s, i) => `
     <tr>
       <td>${i + 1}</td>
       <td><div class="stu-name">${esc(s.name || '—')}</div><div class="stu-meta">${esc(s.regno)}</div></td>
       <td>${esc(s.stream || '—')}</td>
       <td>${esc(s.batch || '—')}${s.batch ? `<span class="batch-center">(${esc(batchCenterName(s.batch))})</span>` : ''}</td>
+      <td class="text-center">${s.testCount || 0}</td>
       <td class="text-center"><span class="status-badge ${scoreBadge(s.avg)}">${s.avg}%</span></td>
       ${subs.map(sub => `<td class="text-center">${s[sub] > 0 ? s[sub] : '—'}</td>`).join('')}
     </tr>
-  `).join('') || '<tr><td colspan="' + (5 + subs.length) + '" class="empty-msg"><p>No data</p></td></tr>';
+  `).join('') || '<tr><td colspan="' + (6 + subs.length) + '" class="empty-msg"><p>No data</p></td></tr>';
+}
+
+// User changed the Top/Bottom N count — re-render just that table.
+function onTopNChange(key) {
+  const r = lastHomeResult;
+  if (!r) return;
+  const input = document.getElementById(key === 'topper' ? 'topperN' : 'bottomN');
+  let n = parseInt(input.value, 10);
+  if (isNaN(n) || n < 1) { n = 10; input.value = 10; }
+  renderStudentTable(key === 'topper' ? 'homeTopperBody' : 'homeBottomBody', key === 'topper' ? r.toppers : r.bottom, n);
+  fitFixedTables();
 }
 
 function renderBatchCard(id, batch, isBest) {
@@ -343,11 +356,13 @@ function tableExportData(key) {
   if (!r) return null;
   if (key === 'topper' || key === 'bottom') {
     const subs = visibleSubjects();
-    const list = key === 'topper' ? r.toppers : r.bottom;
+    const isTop = key === 'topper';
+    const list = isTop ? r.toppers : r.bottom;
+    const n = parseInt(document.getElementById(isTop ? 'topperN' : 'bottomN').value, 10) || 10;
     return {
-      title: key === 'topper' ? 'Topper Students' : 'Bottom Performing Students',
-      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Avg %', ...subs.map(s => SUBJ_LABELS[s])],
-      rows: list.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.avg + '%', ...subs.map(sub => s[sub] || '')])
+      title: isTop ? 'Topper Students' : 'Bottom Performing Students',
+      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Tests', 'Avg %', ...subs.map(s => SUBJ_LABELS[s])],
+      rows: list.slice(0, n).map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.testCount || 0, s.avg + '%', ...subs.map(sub => s[sub] || '')])
     };
   }
   if (key === 'absent') {

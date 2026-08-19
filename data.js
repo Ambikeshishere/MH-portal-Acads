@@ -285,6 +285,7 @@ function computeHome(filters) {
       stream: String(lt.stream || '').trim(),
       batch: String(lt.current_batch || '').trim(),
       avg: +(a.total / a.count).toFixed(1),
+      testCount: a.count,
       physics: parseNum(lt.physics_marks),
       chemistry: parseNum(lt.chemistry_marks),
       maths: parseNum(lt.maths_marks),
@@ -391,14 +392,12 @@ function computeHome(filters) {
   const bottomBatch = batchList[batchList.length - 1] || null;
   const graphBatch = filters.batch || (bestBatch ? bestBatch.batch : null);
 
-  // Top / bottom bands relative to the observed max & min avg score:
-  // topper band = [maxAvg - 10, maxAvg], bottom band = [minAvg, minAvg + 10].
+  // Top / bottom students: full sorted lists (desc / asc by avg %).
+  // The UI slices these to a user-chosen N (default 10).
   let toppers = [], bottom = [];
   if (studentList.length > 0) {
-    const maxAvg = studentList[0].avg;
-    const minAvg = studentList[studentList.length - 1].avg;
-    toppers = studentList.filter(s => s.avg >= maxAvg - 10);
-    bottom = studentList.filter(s => s.avg <= minAvg + 10).reverse();
+    toppers = studentList.slice();
+    bottom = studentList.slice().reverse();
   }
 
   // 11) Batch subject-wise % per test (like the student graph)

@@ -155,11 +155,14 @@
         <div class="table-card">
           <div class="card-head">
             <h3 class="card-title">&#127942; Topper Students</h3>
-            <button type="button" class="btn-download" onclick="showDownloadMenu(this,'topper')">&#11015; Download</button>
+            <div class="topn-control">
+              <label>Top <input type="number" id="topperN" value="10" min="1" max="500" onchange="onTopNChange('topper')"></label>
+              <button type="button" class="btn-download" onclick="showDownloadMenu(this,'topper')">&#11015; Download</button>
+            </div>
           </div>
           <div class="table-scroll table-scroll--fixed">
             <table class="data-table">
-              <thead id="homeTopperHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
+              <thead id="homeTopperHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Tests</th><th class="text-center">Avg %</th></tr></thead>
               <tbody id="homeTopperBody"></tbody>
             </table>
           </div>
@@ -167,11 +170,14 @@
         <div class="table-card">
           <div class="card-head">
             <h3 class="card-title">&#9888;&#65039; Bottom Performing Students</h3>
-            <button type="button" class="btn-download" onclick="showDownloadMenu(this,'bottom')">&#11015; Download</button>
+            <div class="topn-control">
+              <label>Bottom <input type="number" id="bottomN" value="10" min="1" max="500" onchange="onTopNChange('bottom')"></label>
+              <button type="button" class="btn-download" onclick="showDownloadMenu(this,'bottom')">&#11015; Download</button>
+            </div>
           </div>
           <div class="table-scroll table-scroll--fixed">
             <table class="data-table">
-              <thead id="homeBottomHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Avg %</th></tr></thead>
+              <thead id="homeBottomHead"><tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th><th class="text-center">Tests</th><th class="text-center">Avg %</th></tr></thead>
               <tbody id="homeBottomBody"></tbody>
             </table>
           </div>

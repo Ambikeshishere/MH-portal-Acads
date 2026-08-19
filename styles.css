@@ -901,6 +901,22 @@ body {
 }
 .btn-download:hover { border-color: var(--pw-red); color: var(--pw-red-bright); background: rgba(226,27,56,0.08); }
 
+/* Top/Bottom N selector in the table card head */
+.topn-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.topn-control label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--pw-text-secondary);
+  padding: 7px 10px; border: 1px solid var(--pw-border); border-radius: 10px;
+  background: var(--pw-bg-2);
+}
+.topn-control input[type="number"] {
+  width: 52px; padding: 3px 6px; border: 1px solid var(--pw-border); border-radius: 7px;
+  background: var(--pw-dark); color: var(--pw-text); font-size: 13px; font-weight: 700;
+  text-align: center; font-family: inherit;
+}
+.topn-control input[type="number"]:focus { outline: none; border-color: var(--pw-red); box-shadow: 0 0 0 3px rgba(225,29,72,0.12); }
+.topn-control input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+
 /* Download format menu */
 .download-menu {
   position: fixed; z-index: 130; min-width: 160px;
