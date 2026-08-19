@@ -37,8 +37,10 @@ jobs:
           destination: ./_site
       # Serve the self-contained standalone build as the site homepage
       # (it bundles core/auth/data/home/student + all views inline).
+      # Note: _site is written by the Jekyll Docker action (root-owned),
+      # so the copy needs sudo.
       - name: Use standalone as homepage
-        run: cp index-standalone.html _site/index.html
+        run: sudo cp index-standalone.html _site/index.html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
 
