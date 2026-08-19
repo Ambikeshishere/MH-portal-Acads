@@ -92,7 +92,27 @@ function renderHome() {
 
   // ── Subject graph ──
   renderSubjectGraph(result.batchSubjectGraph);
+
+  // ── Fit each scrollable table to exactly 10 rows + header ──
+  fitFixedTables();
 }
+
+// Set max-height of every .table-scroll--fixed so exactly 10 rows (+ header)
+// are visible; the rest scroll vertically. Re-runs on resize so it stays
+// correct when the fluid font size changes.
+function fitFixedTables() {
+  document.querySelectorAll('.table-scroll--fixed').forEach(wrap => {
+    const head = wrap.querySelector('thead');
+    const row = wrap.querySelector('tbody tr');
+    if (!head || !row) return;
+    const hh = head.getBoundingClientRect().height;
+    const rh = row.getBoundingClientRect().height;
+    wrap.style.maxHeight = (hh + rh * 10 + 2) + 'px';
+  });
+}
+window.addEventListener('resize', () => {
+  if (typeof currentView === 'undefined' || currentView === 'home') fitFixedTables();
+});
 
 function renderAbsentStudents(list) {
   const body = document.getElementById('homeAbsentBody');
@@ -125,8 +145,8 @@ function renderStudentTable(bodyId, students) {
       subs.map(s => '<th class="text-center">' + SUBJ_LABELS[s] + '</th>').join('') + '</tr>';
   }
   const body = document.getElementById(bodyId);
-  // Show only the top 10 rows (scrollable container handles the rest)
-  const rows = (students || []).slice(0, 10);
+  // Render ALL rows — the scrollable container shows 10 at a time.
+  const rows = students || [];
   body.innerHTML = rows.map((s, i) => `
     <tr>
       <td>${i + 1}</td>
