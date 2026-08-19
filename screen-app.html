@@ -16,6 +16,10 @@
     </div>
     <div class="topnav-right">
       <span class="live-pill" title="Live data"><span class="live-dot"></span> Live</span>
+      <button class="btn-help" onclick="openHelp()" title="Help & User Guide">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Help</span>
+      </button>
       <button class="btn-request-access" onclick="openCenterChange()" title="Request access to another center">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
         <span>Request Access</span>
@@ -358,6 +362,148 @@
     </div>
 
   </main>
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    <span class="footer-made">This Portal is created by <strong>Ambikesh Srivastava</strong> (<a href="mailto:Ambikesh.srivastava@pw.live">Ambikesh.srivastava@pw.live</a>)</span>
+    <span class="footer-note">Kindly Connect him if any query rises.</span>
+  </footer>
+
+  <!-- HELP / USER GUIDE MODAL -->
+  <div class="modal-overlay" id="helpModal" style="display:none" onclick="if(event.target===this)closeHelp()">
+    <div class="modal modal-help">
+      <div class="modal-header">
+        <h3>&#128161; Help &amp; User Guide</h3>
+        <button type="button" class="modal-close" onclick="closeHelp()">&times;</button>
+      </div>
+      <div class="modal-body help-body">
+
+        <div class="help-section">
+          <h4>About this Portal</h4>
+          <p>This portal shows faculty and student performance for the PW Maharashtra Region. Data is pulled live from the shared Google Sheets. Everything you see changes based on the filters you pick.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>&#127968; Home — Filters</h4>
+          <p>The filter bar applies to <strong>everything</strong> on the Home screen (KPIs, tables, graphs):</p>
+          <ul>
+            <li><strong>Center</strong> — only the selected center's batches/students.</li>
+            <li><strong>Class / Stream</strong> — e.g. Dropper NEET, Dropper JEE.</li>
+            <li><strong>Batch</strong> — a single batch, e.g. 60-YN511CP.</li>
+            <li><strong>Faculty</strong> — only the faculty member's own batches.</li>
+            <li><strong>From / To Date</strong> — only tests between these dates.</li>
+          </ul>
+          <p>Use <strong>Reset</strong> to clear everything back to All.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>&#128202; Home — KPI Cards</h4>
+          <ul>
+            <li><strong>Center</strong> — which center(s) you are viewing.</li>
+            <li><strong>Total Batches</strong> — batches that had at least one test.</li>
+            <li><strong>Total Students</strong> — students who gave at least one test.</li>
+            <li><strong>Total Faculty</strong> — faculty mapped to the visible batches.</li>
+            <li><strong>Avg Score</strong> — average of every test's percentage (marks %).</li>
+            <li><strong>Average Students</strong> — students whose average is within &#177;5% of the overall average (the % below = share of total students).</li>
+            <li><strong>Absent Students</strong> — students who gave no test in the selected scope (the % below = share of total students).</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#127942; Home — Topper &amp; Bottom Students</h4>
+          <p>Lists the students with the highest / lowest average percentage.</p>
+          <ul>
+            <li><strong>Top / Bottom &lt;number&gt;</strong> — type any number (1-500) to see that many students; default is 10.</li>
+            <li><strong>Tests</strong> — how many tests that student gave.</li>
+            <li><strong>Avg %</strong> — average of the student's test percentages. Subject columns show the latest test's subject marks.</li>
+            <li>Download (&#11015;) exports the currently visible list.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#127942; Home — Best / Bottom Batch</h4>
+          <p>The batch with the highest / lowest average percentage, plus its top 3 students.</p>
+        </div>
+
+        <div class="help-section">
+          <h4>&#10060; Home — Absent Students</h4>
+          <p>Students whose batch had a test but who gave <strong>no test</strong> in the selected scope.</p>
+          <ul>
+            <li><strong>Papers Not Given</strong> — how many of the batch's tests they missed.</li>
+            <li>Name / stream come from the Students sheet.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#128202; Home — Batch-wise Subject Average</h4>
+          <p>For every batch: its overall average percentage plus each subject's share.</p>
+          <ul>
+            <li>Subject % = that subject's marks &#247; total score &#215; 100, averaged across the batch's tests.</li>
+            <li>A NEET batch shows Maths as 0% because NEET papers have no Maths.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#128200; Home — Subject Performance Graph</h4>
+          <p>Per test date, the average of each student's subject share (subject marks &#247; score &#215; 100).</p>
+          <ul>
+            <li>Hover any point to see the date, the <strong>average score</strong> of that test and each subject's %.</li>
+            <li>Faculty users only see their own subjects.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#128269; Student — Single Lookup</h4>
+          <p>Enter a registration number and press Search to see that student's performance graph and full test history (date, type, total, score, %, rank).</p>
+        </div>
+
+        <div class="help-section">
+          <h4>&#128218; Batches</h4>
+          <p>List of batches with their subjects, student count, faculty count and average score.</p>
+          <ul>
+            <li>Filters: <strong>Subject</strong>, <strong>Faculty</strong>, <strong>Search</strong>.</li>
+            <li>Click <strong>View</strong> on a batch to open its detail page: Toppers / Average / Needs Improvement / Absent cards plus the full student list with ranks.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#128105;&#8205;&#127891; Faculty</h4>
+          <p>List of faculty with their batches, subjects and centers.</p>
+          <ul>
+            <li>Filters: <strong>Center</strong>, <strong>Search</strong>.</li>
+            <li>Faculty accounts only see their own batches and subjects everywhere in the portal.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#127919; Students</h4>
+          <p>List of all students with tests given, average score and best subject.</p>
+          <ul>
+            <li>Filters: <strong>Batch</strong>, <strong>Sort By</strong> (score / name / tests), <strong>Search</strong>.</li>
+            <li>Click a student to open their detail page: stats, subject bars and test history.</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4>&#129518; How Calculations Work</h4>
+          <ul>
+            <li><strong>Student Avg %</strong> = average of the student's test percentages (marks % column).</li>
+            <li><strong>Batch Avg %</strong> = average of all its students' test percentages.</li>
+            <li><strong>Subject %</strong> = subject marks &#247; total score &#215; 100 (per test, averaged per student).</li>
+            <li><strong>Tests</strong> = tests with a score above zero.</li>
+            <li><strong>Rank</strong> = position by score within the test / batch.</li>
+            <li><strong>Average Students</strong> = students within &#177;5% of the overall average score.</li>
+          </ul>
+        </div>
+
+        <div class="help-section help-credit">
+          <p>This Portal is created by <strong>Ambikesh Srivastava</strong> (<a href="mailto:Ambikesh.srivastava@pw.live">Ambikesh.srivastava@pw.live</a>).</p>
+          <p>Kindly Connect him if any query rises.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!-- MOBILE BOTTOM NAV -->
   <nav class="mobile-nav" id="mobileNav">

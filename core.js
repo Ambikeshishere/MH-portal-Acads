@@ -41,6 +41,22 @@ function showScreen(id) {
   if (id === 'forgotScreen' && typeof setForgotStep === 'function') setForgotStep(1);
 }
 
+// ── HELP / USER GUIDE ──────────────────────────────
+function openHelp() {
+  document.getElementById('helpModal').style.display = 'flex';
+  const body = document.querySelector('.modal-help .help-body');
+  if (body) body.scrollTop = 0;
+}
+function closeHelp() {
+  document.getElementById('helpModal').style.display = 'none';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('helpModal');
+    if (m && m.style.display === 'flex') closeHelp();
+  }
+});
+
 // ── NAVIGATION ─────────────────────────────────────
 function navigate(view) {
   currentView = view;
