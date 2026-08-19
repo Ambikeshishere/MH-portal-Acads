@@ -175,6 +175,18 @@ function normStream(s) {
   return String(s || '').replace(/\b(\d+)(st|nd|rd|th)\b/gi, '$1').trim();
 }
 
+// Center name for a batch (from FBM). Returns '' if unknown.
+// Cached map so rendering thousands of rows stays fast.
+let _batchCenterMap = null;
+function batchCenterName(batch) {
+  if (!batch) return '';
+  if (!_batchCenterMap) {
+    _batchCenterMap = {};
+    DATA.fbm.forEach(r => { if (r.Batch && !_batchCenterMap[r.Batch]) _batchCenterMap[r.Batch] = r.Center || ''; });
+  }
+  return _batchCenterMap[batch] || '';
+}
+
 // ── HOME COMPUTATION ─────────────────────────────────
 // filters: { centers:[], stream:'', batch:'', faculty:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
@@ -367,10 +379,13 @@ function computeHome(filters) {
     // Absent = gave NO test in scope.
     const stuDates = studentTestDates[reg];
     if (stuDates && stuDates.size > 0) continue;
+    // Count of batch tests the student missed (they gave none, so all of them).
+    let missed = 0;
+    for (const d of batchDates) if (!stuDates || !stuDates.has(d)) missed++;
     const info = studentInfo[reg] || {};
-    absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, papers: 0 });
+    absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, papers: 0, missed });
   }
-  absentStudents.sort((a, b) => (a.batch || '').localeCompare(b.batch || ''));
+  absentStudents.sort((a, b) => b.missed - a.missed || (a.batch || '').localeCompare(b.batch || ''));
 
   const bestBatch = batchList[0] || null;
   const bottomBatch = batchList[batchList.length - 1] || null;

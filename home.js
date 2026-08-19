@@ -102,8 +102,8 @@ function renderAbsentStudents(list) {
       <td>${esc(s.name || '—')}</td>
       <td>${esc(s.regno)}</td>
       <td>${esc(s.stream || '—')}</td>
-      <td>${esc(s.batch || '—')}</td>
-      <td class="text-center"><span class="status-badge status-poor">0</span></td>
+      <td>${esc(s.batch || '—')}${s.batch ? `<span class="batch-center">(${esc(batchCenterName(s.batch))})</span>` : ''}</td>
+      <td class="text-center"><span class="status-badge status-poor">${s.missed}</span></td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
 }
@@ -132,7 +132,7 @@ function renderStudentTable(bodyId, students) {
       <td>${i + 1}</td>
       <td><div class="stu-name">${esc(s.name || '—')}</div><div class="stu-meta">${esc(s.regno)}</div></td>
       <td>${esc(s.stream || '—')}</td>
-      <td>${esc(s.batch || '—')}</td>
+      <td>${esc(s.batch || '—')}${s.batch ? `<span class="batch-center">(${esc(batchCenterName(s.batch))})</span>` : ''}</td>
       <td class="text-center"><span class="status-badge ${scoreBadge(s.avg)}">${s.avg}%</span></td>
       ${subs.map(sub => `<td class="text-center">${s[sub] > 0 ? s[sub] : '—'}</td>`).join('')}
     </tr>
@@ -147,7 +147,7 @@ function renderBatchCard(id, batch, isBest) {
   el.innerHTML = `
     <div class="batch-card-head">
       <div>
-        <div class="batch-card-name">${esc(batch.batch)}</div>
+        <div class="batch-card-name">${esc(batch.batch)} <span class="batch-center">(${esc(batchCenterName(batch.batch))})</span></div>
         <div class="batch-card-label">${label}</div>
       </div>
       <span class="status-badge ${badge}">${batch.avg}%</span>
@@ -210,7 +210,7 @@ function renderSubjectGraph(graph) {
       onmousemove="moveHomeTooltip(event)" onmouseover="showHomeTooltip(${i})" onmouseout="hideHomeTooltip()"/>`).join('');
 
   wrap.innerHTML = `
-    <div class="graph-title">Subject % of score per test — <strong>${esc(graph.batch)}</strong> (hover a point)</div>
+    <div class="graph-title">Subject % of score per test — <strong>${esc(graph.batch)} <span class="batch-center">(${esc(batchCenterName(graph.batch))})</span></strong> (hover a point)</div>
     <div class="chart-wrap">
       <svg viewBox="0 0 ${W} ${H}" class="line-chart" preserveAspectRatio="xMidYMid meet">
         ${gridlines}
@@ -312,8 +312,8 @@ function tableExportData(key) {
   if (key === 'absent') {
     return {
       title: 'Absent Students',
-      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Papers Given'],
-      rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.papers])
+      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Center', 'Papers Not Given'],
+      rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, batchCenterName(s.batch), s.missed])
     };
   }
   return null;

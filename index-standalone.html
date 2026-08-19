@@ -406,12 +406,12 @@
       <!-- ABSENT STUDENTS -->
       <div class="table-card" style="margin-top:20px">
         <div class="card-head">
-          <h3 class="card-title">&#10060; Absent Students (ab tak ek bhi paper nahi diya)</h3>
+          <h3 class="card-title">&#10060; Absent Students (No papers given yet)</h3>
           <button type="button" class="btn-download" onclick="showDownloadMenu(this,'absent')">&#11015; Download</button>
         </div>
         <div class="table-scroll table-scroll--fixed">
           <table class="data-table">
-            <thead><tr><th style="width:40px">#</th><th>Name</th><th>Reg No</th><th>Stream</th><th>Batch</th><th class="text-center">Papers Given</th></tr></thead>
+            <thead><tr><th style="width:40px">#</th><th>Name</th><th>Reg No</th><th>Stream</th><th>Batch</th><th class="text-center">Papers Not Given</th></tr></thead>
             <tbody id="homeAbsentBody"></tbody>
           </table>
         </div>
@@ -1332,6 +1332,18 @@ function normStream(s) {
   return String(s || '').replace(/\b(\d+)(st|nd|rd|th)\b/gi, '$1').trim();
 }
 
+// Center name for a batch (from FBM). Returns '' if unknown.
+// Cached map so rendering thousands of rows stays fast.
+let _batchCenterMap = null;
+function batchCenterName(batch) {
+  if (!batch) return '';
+  if (!_batchCenterMap) {
+    _batchCenterMap = {};
+    DATA.fbm.forEach(r => { if (r.Batch && !_batchCenterMap[r.Batch]) _batchCenterMap[r.Batch] = r.Center || ''; });
+  }
+  return _batchCenterMap[batch] || '';
+}
+
 // ── HOME COMPUTATION ─────────────────────────────────
 // filters: { centers:[], stream:'', batch:'', faculty:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
@@ -1524,10 +1536,13 @@ function computeHome(filters) {
     // Absent = gave NO test in scope.
     const stuDates = studentTestDates[reg];
     if (stuDates && stuDates.size > 0) continue;
+    // Count of batch tests the student missed (they gave none, so all of them).
+    let missed = 0;
+    for (const d of batchDates) if (!stuDates || !stuDates.has(d)) missed++;
     const info = studentInfo[reg] || {};
-    absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, papers: 0 });
+    absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, papers: 0, missed });
   }
-  absentStudents.sort((a, b) => (a.batch || '').localeCompare(b.batch || ''));
+  absentStudents.sort((a, b) => b.missed - a.missed || (a.batch || '').localeCompare(b.batch || ''));
 
   const bestBatch = batchList[0] || null;
   const bottomBatch = batchList[batchList.length - 1] || null;
@@ -1753,8 +1768,8 @@ function renderAbsentStudents(list) {
       <td>${esc(s.name || '—')}</td>
       <td>${esc(s.regno)}</td>
       <td>${esc(s.stream || '—')}</td>
-      <td>${esc(s.batch || '—')}</td>
-      <td class="text-center"><span class="status-badge status-poor">0</span></td>
+      <td>${esc(s.batch || '—')}${s.batch ? `<span class="batch-center">(${esc(batchCenterName(s.batch))})</span>` : ''}</td>
+      <td class="text-center"><span class="status-badge status-poor">${s.missed}</span></td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
 }
@@ -1783,7 +1798,7 @@ function renderStudentTable(bodyId, students) {
       <td>${i + 1}</td>
       <td><div class="stu-name">${esc(s.name || '—')}</div><div class="stu-meta">${esc(s.regno)}</div></td>
       <td>${esc(s.stream || '—')}</td>
-      <td>${esc(s.batch || '—')}</td>
+      <td>${esc(s.batch || '—')}${s.batch ? `<span class="batch-center">(${esc(batchCenterName(s.batch))})</span>` : ''}</td>
       <td class="text-center"><span class="status-badge ${scoreBadge(s.avg)}">${s.avg}%</span></td>
       ${subs.map(sub => `<td class="text-center">${s[sub] > 0 ? s[sub] : '—'}</td>`).join('')}
     </tr>
@@ -1798,7 +1813,7 @@ function renderBatchCard(id, batch, isBest) {
   el.innerHTML = `
     <div class="batch-card-head">
       <div>
-        <div class="batch-card-name">${esc(batch.batch)}</div>
+        <div class="batch-card-name">${esc(batch.batch)} <span class="batch-center">(${esc(batchCenterName(batch.batch))})</span></div>
         <div class="batch-card-label">${label}</div>
       </div>
       <span class="status-badge ${badge}">${batch.avg}%</span>
@@ -1861,7 +1876,7 @@ function renderSubjectGraph(graph) {
       onmousemove="moveHomeTooltip(event)" onmouseover="showHomeTooltip(${i})" onmouseout="hideHomeTooltip()"/>`).join('');
 
   wrap.innerHTML = `
-    <div class="graph-title">Subject % of score per test — <strong>${esc(graph.batch)}</strong> (hover a point)</div>
+    <div class="graph-title">Subject % of score per test — <strong>${esc(graph.batch)} <span class="batch-center">(${esc(batchCenterName(graph.batch))})</span></strong> (hover a point)</div>
     <div class="chart-wrap">
       <svg viewBox="0 0 ${W} ${H}" class="line-chart" preserveAspectRatio="xMidYMid meet">
         ${gridlines}
@@ -1963,8 +1978,8 @@ function tableExportData(key) {
   if (key === 'absent') {
     return {
       title: 'Absent Students',
-      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Papers Given'],
-      rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.papers])
+      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Center', 'Papers Not Given'],
+      rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, batchCenterName(s.batch), s.missed])
     };
   }
   return null;
@@ -2098,7 +2113,7 @@ function renderStuDetail(detail) {
     <div class="detail-stat"><div class="ds-value">${esc(detail.name || '—')}</div><div class="ds-label">Name</div></div>
     <div class="detail-stat"><div class="ds-value">${esc(detail.regno)}</div><div class="ds-label">Reg No</div></div>
     <div class="detail-stat"><div class="ds-value">${esc(detail.stream || '—')}</div><div class="ds-label">Stream</div></div>
-    <div class="detail-stat"><div class="ds-value">${esc(detail.batch || '—')}</div><div class="ds-label">Batch</div></div>
+    <div class="detail-stat"><div class="ds-value">${esc(detail.batch || '—')} <span class="batch-center">(${esc(batchCenterName(detail.batch))})</span></div><div class="ds-label">Batch</div></div>
     <div class="detail-stat"><div class="ds-value">${tests}</div><div class="ds-label">Tests</div></div>
     <div class="detail-stat"><div class="ds-value">${avg}%</div><div class="ds-label">Avg %</div></div>
   `;
@@ -2428,7 +2443,7 @@ function renderBatches(batches) {
   tbody.innerHTML = batches.map((b, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td><strong>${b.batch}</strong></td>
+      <td><strong>${b.batch}</strong> <span class="batch-center">(${esc(batchCenterName(b.batch))})</span></td>
       <td>${(b.subjects || []).map(s => '<span class="subject-tag ' + s.toLowerCase() + '">' + s + '</span>').join('')}</td>
       <td class="text-center"><strong>${b.studentCount || 0}</strong></td>
       <td class="text-center">${(b.faculty || []).length}</td>
@@ -2443,7 +2458,7 @@ function renderBatches(batches) {
 async function viewBatchDetail(batch) {
   currentBatch = batch;
   navigate('batchDetail');
-  document.getElementById('batchDetailTitle').textContent = 'Batch: ' + batch;
+  document.getElementById('batchDetailTitle').textContent = 'Batch: ' + batch + (batchCenterName(batch) ? ' (' + batchCenterName(batch) + ')' : '');
 
   // Populate subject filter from batch data
   const batchInfo = batchesData.find(b => b.batch === batch);
@@ -2676,7 +2691,7 @@ function renderStudents(list) {
       <td>${i + 1}</td>
       <td><strong>${s.name || '—'}</strong></td>
       <td style="font-size:12px;color:var(--pw-text-secondary)">${s.regno}</td>
-      <td>${s.batch}</td>
+      <td>${s.batch} <span class="batch-center">(${esc(batchCenterName(s.batch))})</span></td>
       <td class="text-center">${s.tests}</td>
       <td class="text-center">${s.avgScore != null ? '<strong>' + s.avgScore + '%</strong>' : '<span style="color:var(--pw-text-muted)">No tests</span>'}</td>
       <td>${s.bestSubject && s.bestSubject !== '—' ? '<span class="subject-tag ' + s.bestSubject.toLowerCase() + '">' + s.bestSubject + '</span>' : '—'}</td>

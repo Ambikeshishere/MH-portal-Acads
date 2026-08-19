@@ -45,7 +45,7 @@ function renderStuDetail(detail) {
     <div class="detail-stat"><div class="ds-value">${esc(detail.name || '—')}</div><div class="ds-label">Name</div></div>
     <div class="detail-stat"><div class="ds-value">${esc(detail.regno)}</div><div class="ds-label">Reg No</div></div>
     <div class="detail-stat"><div class="ds-value">${esc(detail.stream || '—')}</div><div class="ds-label">Stream</div></div>
-    <div class="detail-stat"><div class="ds-value">${esc(detail.batch || '—')}</div><div class="ds-label">Batch</div></div>
+    <div class="detail-stat"><div class="ds-value">${esc(detail.batch || '—')} <span class="batch-center">(${esc(batchCenterName(detail.batch))})</span></div><div class="ds-label">Batch</div></div>
     <div class="detail-stat"><div class="ds-value">${tests}</div><div class="ds-label">Tests</div></div>
     <div class="detail-stat"><div class="ds-value">${avg}%</div><div class="ds-label">Avg %</div></div>
   `;

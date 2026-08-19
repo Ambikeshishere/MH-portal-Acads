@@ -63,7 +63,7 @@ function renderStudents(list) {
       <td>${i + 1}</td>
       <td><strong>${s.name || '—'}</strong></td>
       <td style="font-size:12px;color:var(--pw-text-secondary)">${s.regno}</td>
-      <td>${s.batch}</td>
+      <td>${s.batch} <span class="batch-center">(${esc(batchCenterName(s.batch))})</span></td>
       <td class="text-center">${s.tests}</td>
       <td class="text-center">${s.avgScore != null ? '<strong>' + s.avgScore + '%</strong>' : '<span style="color:var(--pw-text-muted)">No tests</span>'}</td>
       <td>${s.bestSubject && s.bestSubject !== '—' ? '<span class="subject-tag ' + s.bestSubject.toLowerCase() + '">' + s.bestSubject + '</span>' : '—'}</td>

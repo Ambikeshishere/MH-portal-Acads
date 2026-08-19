@@ -70,7 +70,7 @@ function renderBatches(batches) {
   tbody.innerHTML = batches.map((b, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td><strong>${b.batch}</strong></td>
+      <td><strong>${b.batch}</strong> <span class="batch-center">(${esc(batchCenterName(b.batch))})</span></td>
       <td>${(b.subjects || []).map(s => '<span class="subject-tag ' + s.toLowerCase() + '">' + s + '</span>').join('')}</td>
       <td class="text-center"><strong>${b.studentCount || 0}</strong></td>
       <td class="text-center">${(b.faculty || []).length}</td>
@@ -85,7 +85,7 @@ function renderBatches(batches) {
 async function viewBatchDetail(batch) {
   currentBatch = batch;
   navigate('batchDetail');
-  document.getElementById('batchDetailTitle').textContent = 'Batch: ' + batch;
+  document.getElementById('batchDetailTitle').textContent = 'Batch: ' + batch + (batchCenterName(batch) ? ' (' + batchCenterName(batch) + ')' : '');
 
   // Populate subject filter from batch data
   const batchInfo = batchesData.find(b => b.batch === batch);

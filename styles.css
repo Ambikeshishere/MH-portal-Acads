@@ -823,6 +823,12 @@ body {
 .stu-name { font-weight: 600; font-size: 13px; }
 .stu-meta { font-size: 11px; color: var(--pw-text-secondary); }
 
+/* Small center name shown next to a batch name */
+.batch-center {
+  font-size: 10px; font-weight: 500; color: var(--pw-text-secondary);
+  white-space: nowrap; margin-left: 2px;
+}
+
 /* Batch cards (best / bottom) */
 .batch-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .batch-card-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
