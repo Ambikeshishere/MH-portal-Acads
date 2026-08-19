@@ -163,11 +163,13 @@ function visibleSubjects() {
 
 function renderStudentTable(bodyId, students, n) {
   const subs = visibleSubjects();
-  // Dynamic subject header (Faculty sees only own subjects)
+  // Dynamic subject header (Faculty sees only own subjects) + Batch Tests & Avg Score
   const head = document.getElementById(bodyId === 'homeTopperBody' ? 'homeTopperHead' : 'homeBottomHead');
   if (head) {
     head.innerHTML = '<tr><th style="width:40px">#</th><th>Name</th><th>Stream</th><th>Batch</th>' +
-      '<th class="text-center">Tests</th>' +
+      '<th class="text-center">Tests Taken</th>' +
+      '<th class="text-center">Batch Tests</th>' + // Added Batch Tests
+      '<th class="text-center">Avg Score</th>' + // Added Avg Score
       '<th class="text-center">Avg %</th>' +
       subs.map(s => '<th class="text-center">' + SUBJ_LABELS[s] + '</th>').join('') + '</tr>';
   }
@@ -181,10 +183,12 @@ function renderStudentTable(bodyId, students, n) {
       <td>${esc(s.stream || '—')}</td>
       <td>${esc(s.batch || '—')}${s.batch ? `<span class="batch-center">(${esc(batchCenterName(s.batch))})</span>` : ''}</td>
       <td class="text-center">${s.testCount || 0}</td>
+      <td class="text-center">${s.batchTotalTests || 0}</td> <!-- Added Batch Tests -->
+      <td class="text-center">${s.avgUserScore || 0}</td> <!-- Added Avg Score -->
       <td class="text-center"><span class="status-badge ${scoreBadge(s.avg)}">${s.avg}%</span></td>
       ${subs.map(sub => `<td class="text-center">${s[sub] > 0 ? s[sub] : '—'}</td>`).join('')}
     </tr>
-  `).join('') || '<tr><td colspan="' + (6 + subs.length) + '" class="empty-msg"><p>No data</p></td></tr>';
+  `).join('') || '<tr><td colspan="' + (8 + subs.length) + '" class="empty-msg"><p>No data</p></td></tr>'; // Updated colspan to 8
 }
 
 // User changed the Top/Bottom N count — re-render just that table.
@@ -366,8 +370,9 @@ function tableExportData(key) {
     const n = parseInt(document.getElementById(isTop ? 'topperN' : 'bottomN').value, 10) || 10;
     return {
       title: isTop ? 'Topper Students' : 'Bottom Performing Students',
-      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Tests', 'Avg %', ...subs.map(s => SUBJ_LABELS[s])],
-      rows: list.slice(0, n).map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.testCount || 0, s.avg + '%', ...subs.map(sub => s[sub] || '')])
+      // Updated headers for downloads to match UI
+      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Tests Taken', 'Batch Tests', 'Avg Score', 'Avg %', ...subs.map(s => SUBJ_LABELS[s])],
+      rows: list.slice(0, n).map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.testCount || 0, s.batchTotalTests || 0, s.avgUserScore || 0, s.avg + '%', ...subs.map(sub => s[sub] || '')])
     };
   }
   if (key === 'absent') {
