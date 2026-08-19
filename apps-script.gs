@@ -84,7 +84,8 @@ function findUser(identifier) {
                centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
                pwid: String(data[i][3] || '').trim(),
                password: String(data[i][7] || '').trim(),
-               otp: String(data[i][10] || '').trim() };
+               otp: String(data[i][10] || '').trim(),
+               otpVerified: String(data[i][11] || '').trim() };
     }
   }
   // 2) Try PWID in ID-Role (column D)
@@ -95,7 +96,8 @@ function findUser(identifier) {
                centerRaw: String(data[i][1] || '').trim(), role: String(data[i][2]).trim(),
                pwid: String(data[i][3] || '').trim(),
                password: String(data[i][7] || '').trim(),
-               otp: String(data[i][10] || '').trim() };
+               otp: String(data[i][10] || '').trim(),
+               otpVerified: String(data[i][11] || '').trim() };
     }
   }
   return null;
@@ -130,6 +132,7 @@ function handleForgotPassword(e) {
   if (!user) return json({ success: false, message: 'User not found' });
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   user.sheet.getRange(user.index + 1, 11).setValue(otp);
+  user.sheet.getRange(user.index + 1, 12).setValue(''); // reset verified flag
   try { MailApp.sendEmail({ to: user.email,
     subject: 'PW Portal — Password Reset OTP',
     body: 'Your OTP: ' + otp + '\nValid for 10 minutes.' });
@@ -141,7 +144,7 @@ function handleVerifyOTP(e) {
   const user = findUser(e.parameter.identifier);
   if (!user) return json({ success: false, message: 'User not found' });
   if (user.otp === String(e.parameter.otp).trim()) {
-    user.sheet.getRange(user.index + 1, 11).setValue('');
+    user.sheet.getRange(user.index + 1, 12).setValue('yes'); // mark verified
     return json({ success: true, message: 'OTP verified' });
   }
   return json({ success: false, message: 'Invalid OTP' });
@@ -150,9 +153,15 @@ function handleVerifyOTP(e) {
 function handleResetPassword(data) {
   const user = findUser(data.identifier);
   if (!user) return json({ success: false, message: 'User not found' });
+  // Password can only be changed after the OTP has been verified.
+  if (user.otpVerified !== 'yes') {
+    return json({ success: false, message: 'OTP not verified. Please verify OTP first.' });
+  }
   const pw = String(data.newPassword).trim();
   if (pw.length < 4) return json({ success: false, message: 'Password too short' });
   user.sheet.getRange(user.index + 1, 8).setValue(pw);
+  user.sheet.getRange(user.index + 1, 11).setValue(''); // clear OTP
+  user.sheet.getRange(user.index + 1, 12).setValue(''); // clear verified flag
   return json({ success: true, message: 'Password updated successfully' });
 }
 
