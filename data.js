@@ -430,7 +430,9 @@ function computeHome(filters) {
         // Average of per-student subject % (subject_marks/userscore*100)
         subjects[s] = d.count > 0 ? +((d.subjPctSum[s] || 0) / d.count).toFixed(1) : 0;
       }
-      return { date, score: d.scoreSum, subjects };
+      // Score shown in the tooltip = average userscore of the test
+      const avgScore = d.count > 0 ? Math.round(d.scoreSum / d.count) : d.scoreSum;
+      return { date, score: avgScore, subjects };
     });
   }
 
