@@ -252,6 +252,8 @@ function computeHome(filters) {
   const dateFrom = filters.dateFrom ? parseTestDate(filters.dateFrom) : null;
   const dateTo = filters.dateTo ? parseTestDate(filters.dateTo) : null;
   const filteredTests = [];
+  const batchTestDates = {}; // To compute total tests in batch
+  
   for (const t of DATA.tests) {
     if (!accStudents.has(t.reg_no)) continue;
     if (filters.stream && t.stream !== filters.stream) continue;
@@ -263,15 +265,25 @@ function computeHome(filters) {
       if (dateTo && d > dateTo) continue;
     }
     filteredTests.push(t);
+    
+    // Add to batchTestDates
+    if (t.current_batch && t._date) {
+        if (!batchTestDates[t.current_batch]) {
+            batchTestDates[t.current_batch] = new Set();
+        }
+        batchTestDates[t.current_batch].add(t._date);
+    }
   }
 
-  // 5) Per-student aggregation (avg % + latest test for subject marks)
+  // 5) Per-student aggregation (avg % + latest test for subject marks + userscore)
   const stuAgg = {};
   for (const t of filteredTests) {
     const pct = parsePct(t.markspercent);
+    const uScore = parseNum(t.userscore); // Added userscore logic
     if (pct <= 0) continue;
-    if (!stuAgg[t.reg_no]) stuAgg[t.reg_no] = { total: 0, count: 0, latest: t };
+    if (!stuAgg[t.reg_no]) stuAgg[t.reg_no] = { total: 0, totalUserScore: 0, count: 0, latest: t };
     stuAgg[t.reg_no].total += pct;
+    stuAgg[t.reg_no].totalUserScore += uScore;
     stuAgg[t.reg_no].count++;
     stuAgg[t.reg_no].latest = t;
   }
@@ -279,13 +291,16 @@ function computeHome(filters) {
   const studentList = Object.keys(stuAgg).map(reg => {
     const a = stuAgg[reg];
     const lt = a.latest;
+    const b = String(lt.current_batch || '').trim();
     return {
       regno: reg,
       name: String(lt.student_name || '').trim(),
       stream: String(lt.stream || '').trim(),
-      batch: String(lt.current_batch || '').trim(),
+      batch: b,
       avg: +(a.total / a.count).toFixed(1),
+      avgUserScore: +(a.totalUserScore / a.count).toFixed(1), // Added avg userscore
       testCount: a.count,
+      batchTotalTests: batchTestDates[b] ? batchTestDates[b].size : 0, // Added batch tests
       physics: parseNum(lt.physics_marks),
       chemistry: parseNum(lt.chemistry_marks),
       maths: parseNum(lt.maths_marks),
@@ -348,7 +363,8 @@ function computeHome(filters) {
   //     Blank date range → never gave a single paper (ever).
   //     Date range set → gave no paper within that range.
   //     Name/stream come from the STUDENTS sheet (student_name, class_course).
-  const batchTestDates = {};
+  // (We use a secondary loop for absence because we need all tests of the batch, not just those where student scored > 0)
+  const batchTestDatesFull = {};
   const studentTestDates = {};
   const studentInfo = {};
   for (const s of DATA.students) {
@@ -364,7 +380,7 @@ function computeHome(filters) {
       if (dateTo && d > dateTo) continue;
     }
     const b = t.current_batch;
-    if (b) { if (!batchTestDates[b]) batchTestDates[b] = new Set(); batchTestDates[b].add(t._date); }
+    if (b) { if (!batchTestDatesFull[b]) batchTestDatesFull[b] = new Set(); batchTestDatesFull[b].add(t._date); }
     if (t.reg_no) {
       if (!studentTestDates[t.reg_no]) studentTestDates[t.reg_no] = new Set();
       studentTestDates[t.reg_no].add(t._date);
@@ -375,7 +391,7 @@ function computeHome(filters) {
     const b = studentBatch[reg];
     // Only consider students whose batch actually had a test in scope
     // (avoids listing brand-new batches that never had a paper).
-    const batchDates = batchTestDates[b];
+    const batchDates = batchTestDatesFull[b];
     if (!batchDates || batchDates.size === 0) continue;
     // Absent = gave NO test in scope.
     const stuDates = studentTestDates[reg];
