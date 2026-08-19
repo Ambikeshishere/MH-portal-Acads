@@ -90,6 +90,9 @@ function renderHome() {
   // ── Absent students ──
   renderAbsentStudents(result.absentStudents);
 
+  // ── Batch-wise subject average ──
+  renderBatchAvgTable(result.batchSubjectAvg);
+
   // ── Subject graph ──
   renderSubjectGraph(result.batchSubjectGraph);
 
@@ -126,6 +129,24 @@ function renderAbsentStudents(list) {
       <td class="text-center"><span class="status-badge status-poor">${s.missed}</span></td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
+}
+
+// Batch-wise subject average table (Batch | Center | Avg | Phy | Chem | Math | Zoo | Bot)
+function renderBatchAvgTable(list) {
+  const body = document.getElementById('homeBatchAvgBody');
+  body.innerHTML = (list || []).map((b, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${esc(b.batch)}${b.batch ? `<span class="batch-center">(${esc(b.center)})</span>` : ''}</td>
+      <td>${esc(b.center || '—')}</td>
+      <td class="text-center"><span class="status-badge ${scoreBadge(b.avg)}">${b.avg}%</span></td>
+      <td class="text-center">${b.physics}%</td>
+      <td class="text-center">${b.chemistry}%</td>
+      <td class="text-center">${b.maths}%</td>
+      <td class="text-center">${b.zoology}%</td>
+      <td class="text-center">${b.botany}%</td>
+    </tr>
+  `).join('') || '<tr><td colspan="9" class="empty-msg"><p>No data</p></td></tr>';
 }
 
 // Which subject columns to show (Faculty → own subjects only)
@@ -334,6 +355,13 @@ function tableExportData(key) {
       title: 'Absent Students',
       headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Center', 'Papers Not Given'],
       rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, batchCenterName(s.batch), s.missed])
+    };
+  }
+  if (key === 'batchAvg') {
+    return {
+      title: 'Batch-wise Subject Average',
+      headers: ['#', 'Batch', 'Center', 'Avg Score %', 'Physics %', 'Chemistry %', 'Maths %', 'Zoology %', 'Botany %'],
+      rows: r.batchSubjectAvg.map((b, i) => [i + 1, b.batch, b.center, b.avg + '%', b.physics + '%', b.chemistry + '%', b.maths + '%', b.zoology + '%', b.botany + '%'])
     };
   }
   return null;

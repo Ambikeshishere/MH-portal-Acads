@@ -204,6 +204,20 @@
         </div>
       </div>
 
+      <!-- BATCH-WISE SUBJECT AVERAGE -->
+      <div class="table-card" style="margin-top:20px">
+        <div class="card-head">
+          <h3 class="card-title">&#128202; Batch-wise Subject Average (%)</h3>
+          <button type="button" class="btn-download" onclick="showDownloadMenu(this,'batchAvg')">&#11015; Download</button>
+        </div>
+        <div class="table-scroll table-scroll--fixed">
+          <table class="data-table">
+            <thead><tr><th style="width:40px">#</th><th>Batch</th><th>Center</th><th class="text-center">Avg Score</th><th class="text-center">Physics</th><th class="text-center">Chemistry</th><th class="text-center">Maths</th><th class="text-center">Zoology</th><th class="text-center">Botany</th></tr></thead>
+            <tbody id="homeBatchAvgBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- SUBJECT GRAPH -->
       <div class="dash-card" style="margin-top:20px">
         <h3>&#128200; Subject Performance</h3>

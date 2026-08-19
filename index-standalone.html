@@ -411,6 +411,20 @@
         </div>
       </div>
 
+      <!-- BATCH-WISE SUBJECT AVERAGE -->
+      <div class="table-card" style="margin-top:20px">
+        <div class="card-head">
+          <h3 class="card-title">&#128202; Batch-wise Subject Average (%)</h3>
+          <button type="button" class="btn-download" onclick="showDownloadMenu(this,'batchAvg')">&#11015; Download</button>
+        </div>
+        <div class="table-scroll table-scroll--fixed">
+          <table class="data-table">
+            <thead><tr><th style="width:40px">#</th><th>Batch</th><th>Center</th><th class="text-center">Avg Score</th><th class="text-center">Physics</th><th class="text-center">Chemistry</th><th class="text-center">Maths</th><th class="text-center">Zoology</th><th class="text-center">Botany</th></tr></thead>
+            <tbody id="homeBatchAvgBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- SUBJECT GRAPH -->
       <div class="dash-card" style="margin-top:20px">
         <h3>&#128200; Subject Performance</h3>
@@ -1520,6 +1534,36 @@ function computeHome(filters) {
     }
   }
 
+  // 12) Per-batch subject-wise average % (subject_marks / userscore * 100),
+  //     averaged across every test in the batch. Includes overall avg + center.
+  const batchSubjAgg = {};
+  for (const t of filteredTests) {
+    const b = t.current_batch;
+    if (!b) continue;
+    const score = parseNum(t.userscore);
+    if (score <= 0) continue;
+    if (!batchSubjAgg[b]) batchSubjAgg[b] = { sums: { physics: 0, chemistry: 0, maths: 0, zoology: 0, botany: 0 }, count: 0 };
+    const agg = batchSubjAgg[b];
+    agg.count++;
+    for (const s of SUBJ_NAMES) {
+      const m = parseNum(t[s + '_marks']);
+      agg.sums[s] += (m / score) * 100;
+    }
+  }
+  const batchSubjectAvg = Object.keys(batchSubjAgg).map(b => {
+    const agg = batchSubjAgg[b];
+    const subjects = {};
+    for (const s of SUBJ_NAMES) subjects[s] = agg.count ? +((agg.sums[s] / agg.count)).toFixed(1) : 0;
+    return {
+      batch: b,
+      center: batchCenterName(b),
+      avg: batchAgg[b] ? +(batchAgg[b].total / batchAgg[b].count).toFixed(1) : 0,
+      physics: subjects.physics, chemistry: subjects.chemistry, maths: subjects.maths,
+      zoology: subjects.zoology, botany: subjects.botany
+    };
+  });
+  batchSubjectAvg.sort((a, b) => b.avg - a.avg);
+
   return {
     kpis: {
       centers: centers,
@@ -1537,6 +1581,7 @@ function computeHome(filters) {
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
     batchSubjectGraph: graphBatch ? { batch: graphBatch, history: batchSubjectGraphData(graphBatch) } : null,
     absentStudents: absentStudents,
+    batchSubjectAvg: batchSubjectAvg,
     filterOptions: {
       centers: allCenters(),
       streams: [...streamSet].sort(),
@@ -1673,6 +1718,9 @@ function renderHome() {
   // ── Absent students ──
   renderAbsentStudents(result.absentStudents);
 
+  // ── Batch-wise subject average ──
+  renderBatchAvgTable(result.batchSubjectAvg);
+
   // ── Subject graph ──
   renderSubjectGraph(result.batchSubjectGraph);
 
@@ -1709,6 +1757,24 @@ function renderAbsentStudents(list) {
       <td class="text-center"><span class="status-badge status-poor">${s.missed}</span></td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
+}
+
+// Batch-wise subject average table (Batch | Center | Avg | Phy | Chem | Math | Zoo | Bot)
+function renderBatchAvgTable(list) {
+  const body = document.getElementById('homeBatchAvgBody');
+  body.innerHTML = (list || []).map((b, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${esc(b.batch)}${b.batch ? `<span class="batch-center">(${esc(b.center)})</span>` : ''}</td>
+      <td>${esc(b.center || '—')}</td>
+      <td class="text-center"><span class="status-badge ${scoreBadge(b.avg)}">${b.avg}%</span></td>
+      <td class="text-center">${b.physics}%</td>
+      <td class="text-center">${b.chemistry}%</td>
+      <td class="text-center">${b.maths}%</td>
+      <td class="text-center">${b.zoology}%</td>
+      <td class="text-center">${b.botany}%</td>
+    </tr>
+  `).join('') || '<tr><td colspan="9" class="empty-msg"><p>No data</p></td></tr>';
 }
 
 // Which subject columns to show (Faculty → own subjects only)
@@ -1917,6 +1983,13 @@ function tableExportData(key) {
       title: 'Absent Students',
       headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Center', 'Papers Not Given'],
       rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, batchCenterName(s.batch), s.missed])
+    };
+  }
+  if (key === 'batchAvg') {
+    return {
+      title: 'Batch-wise Subject Average',
+      headers: ['#', 'Batch', 'Center', 'Avg Score %', 'Physics %', 'Chemistry %', 'Maths %', 'Zoology %', 'Botany %'],
+      rows: r.batchSubjectAvg.map((b, i) => [i + 1, b.batch, b.center, b.avg + '%', b.physics + '%', b.chemistry + '%', b.maths + '%', b.zoology + '%', b.botany + '%'])
     };
   }
   return null;

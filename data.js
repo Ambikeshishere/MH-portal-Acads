@@ -446,6 +446,36 @@ function computeHome(filters) {
     }
   }
 
+  // 12) Per-batch subject-wise average % (subject_marks / userscore * 100),
+  //     averaged across every test in the batch. Includes overall avg + center.
+  const batchSubjAgg = {};
+  for (const t of filteredTests) {
+    const b = t.current_batch;
+    if (!b) continue;
+    const score = parseNum(t.userscore);
+    if (score <= 0) continue;
+    if (!batchSubjAgg[b]) batchSubjAgg[b] = { sums: { physics: 0, chemistry: 0, maths: 0, zoology: 0, botany: 0 }, count: 0 };
+    const agg = batchSubjAgg[b];
+    agg.count++;
+    for (const s of SUBJ_NAMES) {
+      const m = parseNum(t[s + '_marks']);
+      agg.sums[s] += (m / score) * 100;
+    }
+  }
+  const batchSubjectAvg = Object.keys(batchSubjAgg).map(b => {
+    const agg = batchSubjAgg[b];
+    const subjects = {};
+    for (const s of SUBJ_NAMES) subjects[s] = agg.count ? +((agg.sums[s] / agg.count)).toFixed(1) : 0;
+    return {
+      batch: b,
+      center: batchCenterName(b),
+      avg: batchAgg[b] ? +(batchAgg[b].total / batchAgg[b].count).toFixed(1) : 0,
+      physics: subjects.physics, chemistry: subjects.chemistry, maths: subjects.maths,
+      zoology: subjects.zoology, botany: subjects.botany
+    };
+  });
+  batchSubjectAvg.sort((a, b) => b.avg - a.avg);
+
   return {
     kpis: {
       centers: centers,
@@ -463,6 +493,7 @@ function computeHome(filters) {
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
     batchSubjectGraph: graphBatch ? { batch: graphBatch, history: batchSubjectGraphData(graphBatch) } : null,
     absentStudents: absentStudents,
+    batchSubjectAvg: batchSubjectAvg,
     filterOptions: {
       centers: allCenters(),
       streams: [...streamSet].sort(),
