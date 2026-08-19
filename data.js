@@ -142,6 +142,26 @@ function facultySubjects(email) {
   return [...subs];
 }
 
+// Batches a Faculty teaches (from FBM MailID).
+function facultyBatches(email) {
+  const set = new Set();
+  const e = String(email || '').toLowerCase();
+  DATA.fbm.forEach(r => {
+    if (r.MailID && r.Batch && r.MailID.trim().toLowerCase() === e) set.add(r.Batch);
+  });
+  return [...set];
+}
+
+// Streams a Faculty teaches — streams of students enrolled in their batches.
+function facultyStreams(email) {
+  const batches = new Set(facultyBatches(email));
+  const streams = new Set();
+  DATA.students.forEach(r => {
+    if (r.batch && batches.has(r.batch) && r.class_course) streams.add(normStream(r.class_course));
+  });
+  return [...streams];
+}
+
 // Subjects a student studies, based on their stream.
 // NEET → no Maths; JEE & Foundation → no Zoology/Botany.
 function streamSubjects(stream) {
@@ -156,12 +176,25 @@ function normStream(s) {
 }
 
 // ── HOME COMPUTATION ─────────────────────────────────
-// filters: { centers:[], stream:'', batch:'', dateFrom:'', dateTo:'' }
+// filters: { centers:[], stream:'', batch:'', faculty:'', dateFrom:'', dateTo:'' }
 // Returns KPIs, toppers, bottom, best/bottom batch, subject graph,
 // and the filter option lists.
 function computeHome(filters) {
   const centers = filters.centers && filters.centers.length ? filters.centers : allCenters();
   const centerSet = new Set(centers);
+
+  // Faculty role (level <= 1): they may ONLY see their own batches.
+  const roleBatches = (user.level <= 1) ? new Set(facultyBatches(user.email)) : null;
+
+  // faculty (filter) → batches map from FBM.
+  const facultyBatchMap = {};
+  DATA.fbm.forEach(r => {
+    if (r.MailID && r.Batch) {
+      const key = r.MailID.trim().toLowerCase();
+      if (!facultyBatchMap[key]) facultyBatchMap[key] = new Set();
+      facultyBatchMap[key].add(r.Batch);
+    }
+  });
 
   // 1) batch → center mapping from FBM (ONLY for center scoping).
   //    FBM is NOT used for batch/student counts — only to know which
@@ -171,15 +204,21 @@ function computeHome(filters) {
 
   // 2) Accessible batches + students come from the STUDENTS sheet.
   //    Batch count and student count are driven by enrolled students.
-  //    Stream + batch filters apply here too (so KPIs/absent respect them).
+  //    Stream + batch + faculty filters apply here too (so KPIs/absent
+  //    respect them). centerBatches = center-scope only, for option lists.
   const studentBatch = {};
   const accBatches = new Set();
+  const centerBatches = new Set();
   const accStudents = new Set();
   DATA.students.forEach(r => {
     const reg = r.regno, b = r.batch;
     if (!reg) return;
     studentBatch[reg] = b;
     if (b && centerSet.has(batchCenter[b])) {
+      if (roleBatches && !roleBatches.has(b)) return; // faculty: own batches only
+      centerBatches.add(b);
+      const fb = filters.faculty ? facultyBatchMap[String(filters.faculty).toLowerCase()] : null;
+      if (filters.faculty && (!fb || !fb.has(b))) return;
       if (filters.stream && normStream(r.class_course) !== filters.stream) return;
       if (filters.batch && b !== filters.batch) return;
       accBatches.add(b);
@@ -190,7 +229,11 @@ function computeHome(filters) {
   // 3) Faculty in scope
   const accFaculty = new Set();
   DATA.fbm.forEach(r => {
-    if (accBatches.has(r.Batch) && r.MailID) accFaculty.add(r.MailID.trim());
+    if (accBatches.has(r.Batch) && r.MailID) {
+      const mail = r.MailID.trim();
+      if (roleBatches && mail.toLowerCase() !== String(user.email).toLowerCase()) return;
+      accFaculty.add(mail);
+    }
   });
 
   // 4) Filter tests by scope + stream + batch + date range
@@ -288,8 +331,9 @@ function computeHome(filters) {
   const avgLo = avgScore - 5, avgHi = avgScore + 5;
   const avgStudents = studentList.filter(s => s.avg >= avgLo && s.avg <= avgHi).length;
 
-  // 10) Absent students — their batch had a test but they didn't give it.
-  //     Pending = number of batch tests the student missed (within date range).
+  // 10) Absent students — students who gave NO test in the current scope.
+  //     Blank date range → never gave a single paper (ever).
+  //     Date range set → gave no paper within that range.
   //     Name/stream come from the STUDENTS sheet (student_name, class_course).
   const batchTestDates = {};
   const studentTestDates = {};
@@ -316,17 +360,17 @@ function computeHome(filters) {
   const absentStudents = [];
   for (const reg of accStudents) {
     const b = studentBatch[reg];
+    // Only consider students whose batch actually had a test in scope
+    // (avoids listing brand-new batches that never had a paper).
     const batchDates = batchTestDates[b];
     if (!batchDates || batchDates.size === 0) continue;
-    const stuDates = studentTestDates[reg] || new Set();
-    let pending = 0;
-    for (const d of batchDates) if (!stuDates.has(d)) pending++;
-    if (pending > 0) {
-      const info = studentInfo[reg] || {};
-      absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, pending });
-    }
+    // Absent = gave NO test in scope.
+    const stuDates = studentTestDates[reg];
+    if (stuDates && stuDates.size > 0) continue;
+    const info = studentInfo[reg] || {};
+    absentStudents.push({ regno: reg, name: info.name || '', stream: info.stream || '', batch: b, papers: 0 });
   }
-  absentStudents.sort((a, b) => b.pending - a.pending);
+  absentStudents.sort((a, b) => (a.batch || '').localeCompare(b.batch || ''));
 
   const bestBatch = batchList[0] || null;
   const bottomBatch = batchList[batchList.length - 1] || null;
@@ -370,6 +414,23 @@ function computeHome(filters) {
     });
   }
 
+  // Faculty option list — scoped to the selected centers (+ role), NOT to
+  // the stream/batch/faculty filters (so selecting a stream can't empty it).
+  const facOptions = new Set();
+  DATA.fbm.forEach(r => {
+    if (!r.MailID || !r.Batch) return;
+    if (!centerBatches.has(r.Batch)) return;
+    facOptions.add(r.MailID.trim());
+  });
+
+  // Stream option list — scoped to the selected centers (+ role).
+  const streamSet = new Set();
+  for (const t of DATA.tests) {
+    if (t.current_batch && centerBatches.has(t.current_batch) && t.stream) {
+      streamSet.add(normStream(t.stream));
+    }
+  }
+
   return {
     kpis: {
       centers: centers,
@@ -386,11 +447,12 @@ function computeHome(filters) {
     bottomBatch: bottomBatch ? { ...bottomBatch, topStudents: topStudentsOf(bottomBatch.batch, 3) } : null,
     subjectGraph: graphBatch ? { batch: graphBatch, subjects: subjectAverages(graphBatch) } : null,
     batchSubjectGraph: graphBatch ? { batch: graphBatch, history: batchSubjectGraphData(graphBatch) } : null,
-    absentStudents: absentStudents.slice(0, 10),
+    absentStudents: absentStudents,
     filterOptions: {
       centers: allCenters(),
-      streams: [...new Set(DATA.tests.map(t => t.stream).filter(Boolean))].sort(),
-      batches: [...accBatches].sort()
+      streams: [...streamSet].sort(),
+      batches: [...accBatches].sort(),
+      faculty: [...facOptions].sort()
     }
   };
 }

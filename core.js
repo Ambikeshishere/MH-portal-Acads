@@ -18,6 +18,21 @@ let currentView = 'home';
 let currentBatch = null;
 let backendVersion = 'unknown'; // 'old' or 'new'
 
+// ── THEME (dark / light) ───────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('pw_theme', theme); } catch (_) {}
+}
+function initTheme() {
+  let saved = 'dark';
+  try { saved = localStorage.getItem('pw_theme') || 'dark'; } catch (_) {}
+  applyTheme(saved);
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+
 // ── SCREEN NAVIGATION ──────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -149,6 +164,7 @@ function togglePass(id, btn) {
 // ── AUTO-LOGIN ─────────────────────────────────────
 // Wait for loader.js to inject all HTML partials before booting.
 document.addEventListener('pw:html-ready', () => {
+  initTheme();
   const saved = localStorage.getItem('pw_user');
   if (saved) {
     try {

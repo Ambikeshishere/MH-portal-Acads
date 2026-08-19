@@ -85,7 +85,8 @@ function visibleStuSubjects(detail) {
   return subs;
 }
 
-// Subject colors (match the app's subject tag scheme)
+// Subject colors — distinct colors so each subject line is clear
+// (NEET shows exactly 4: Phy/Chem/Zoo/Bot; JEE shows 3: Phy/Chem/Maths)
 const SUBJ_COLORS = { physics: '#F43F5E', chemistry: '#A78BFA', maths: '#60A5FA', zoology: '#4ADE80', botany: '#FBBF24' };
 
 // Current chart data for hover tooltips
@@ -102,7 +103,7 @@ function renderStuGraph(detail) {
   // percent per subject per test = subject_marks / userscore * 100
   const pctOf = (t, s) => t.score > 0 ? +((t.subjects[s] / t.score) * 100).toFixed(1) : 0;
 
-  const W = 720, H = 340, PL = 46, PR = 30, PT = 24, PB = 46;
+  const W = 1000, H = 220, PL = 46, PR = 30, PT = 16, PB = 36;
   const plotW = W - PL - PR, plotH = H - PT - PB;
   const n = history.length;
   const x = i => PL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);

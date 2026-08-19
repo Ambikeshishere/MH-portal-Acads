@@ -9,7 +9,8 @@
 //              data.js (loadData, computeHome, accessibleCenters)
 // ============================================================
 
-let homeFilters = { centers: [], stream: '', batch: '', dateFrom: '', dateTo: '' };
+let homeFilters = { centers: [], stream: '', batch: '', faculty: '', dateFrom: '', dateTo: '' };
+let lastHomeResult = null; // last computeHome result (for table downloads)
 
 // ── LOAD + RENDER ───────────────────────────────────
 async function loadHome() {
@@ -19,6 +20,13 @@ async function loadHome() {
     // Default center selection based on role
     if (homeFilters.centers.length === 0) {
       homeFilters.centers = accessibleCenters();
+      // Faculty: auto-select their single batch/stream (if only one)
+      if (user.level <= 1) {
+        const batches = facultyBatches(user.email);
+        const streams = facultyStreams(user.email);
+        if (batches.length === 1) homeFilters.batch = batches[0];
+        if (streams.length === 1) homeFilters.stream = streams[0];
+      }
     }
     populateHomeFilters();
     renderHome();
@@ -40,19 +48,25 @@ function populateHomeFilters() {
     centerSel.value = centers[0];
     homeFilters.centers = centers;
   }
+  // Faculty role: lock the center to their own center
+  if (user.level <= 1) centerSel.disabled = true;
 
   // Stream/class dropdown — populated after compute (needs all streams)
   // Batch dropdown — populated after compute
+  // Faculty dropdown — populated after compute
 }
 
 function renderHome() {
   const result = computeHome(homeFilters);
+  lastHomeResult = result;
 
-  // ── Filters: streams + batches (from result) ──
+  // ── Filters: streams + batches + faculty (from result) ──
   fillSelect('homeFilterStream', result.filterOptions.streams, 'All Classes');
   fillSelect('homeFilterBatch', result.filterOptions.batches, 'All Batches');
+  fillSelect('homeFilterFaculty', result.filterOptions.faculty, 'All Faculty');
   if (homeFilters.stream) document.getElementById('homeFilterStream').value = homeFilters.stream;
   if (homeFilters.batch) document.getElementById('homeFilterBatch').value = homeFilters.batch;
+  if (homeFilters.faculty) document.getElementById('homeFilterFaculty').value = homeFilters.faculty;
 
   // ── KPI cards ──
   const k = result.kpis;
@@ -89,7 +103,7 @@ function renderAbsentStudents(list) {
       <td>${esc(s.regno)}</td>
       <td>${esc(s.stream || '—')}</td>
       <td>${esc(s.batch || '—')}</td>
-      <td class="text-center"><span class="status-badge status-poor">${s.pending}</span></td>
+      <td class="text-center"><span class="status-badge status-poor">0</span></td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="empty-msg"><p>No absent students</p></td></tr>';
 }
@@ -163,7 +177,7 @@ function renderSubjectGraph(graph) {
   const subs = visibleSubjects().filter(s => history.some(t => t.subjects && s in t.subjects));
   homeChartData = { history, subjects: subs };
 
-  const W = 720, H = 340, PL = 46, PR = 30, PT = 24, PB = 46;
+  const W = 1000, H = 220, PL = 46, PR = 30, PT = 16, PB = 36;
   const plotW = W - PL - PR, plotH = H - PT - PB;
   const n = history.length;
   const x = i => PL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
@@ -246,6 +260,7 @@ function onHomeCenterChange() {
   const sel = document.getElementById('homeFilterCenter');
   homeFilters.centers = sel.value ? [sel.value] : accessibleCenters();
   homeFilters.batch = '';
+  homeFilters.faculty = '';
   renderHome();
 }
 function onHomeStreamChange() {
@@ -257,17 +272,130 @@ function onHomeBatchChange() {
   homeFilters.batch = document.getElementById('homeFilterBatch').value;
   renderHome();
 }
+function onHomeFacultyChange() {
+  homeFilters.faculty = document.getElementById('homeFilterFaculty').value;
+  homeFilters.batch = '';
+  renderHome();
+}
 function onHomeDateChange() {
   homeFilters.dateFrom = document.getElementById('homeDateFrom').value;
   homeFilters.dateTo = document.getElementById('homeDateTo').value;
   renderHome();
 }
 function resetHomeFilters() {
-  homeFilters = { centers: accessibleCenters(), stream: '', batch: '', dateFrom: '', dateTo: '' };
+  homeFilters = { centers: accessibleCenters(), stream: '', batch: '', faculty: '', dateFrom: '', dateTo: '' };
   document.getElementById('homeFilterCenter').value = '';
   document.getElementById('homeFilterStream').value = '';
   document.getElementById('homeFilterBatch').value = '';
+  document.getElementById('homeFilterFaculty').value = '';
   document.getElementById('homeDateFrom').value = '';
   document.getElementById('homeDateTo').value = '';
   renderHome();
+}
+
+// ── TABLE DOWNLOADS (CSV / XLS / PDF) ───────────────
+let pendingExport = null;
+
+// Build { title, headers, rows } for a Home table from the last result.
+function tableExportData(key) {
+  const r = lastHomeResult;
+  if (!r) return null;
+  if (key === 'topper' || key === 'bottom') {
+    const subs = visibleSubjects();
+    const list = key === 'topper' ? r.toppers : r.bottom;
+    return {
+      title: key === 'topper' ? 'Topper Students' : 'Bottom Performing Students',
+      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Avg %', ...subs.map(s => SUBJ_LABELS[s])],
+      rows: list.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.avg + '%', ...subs.map(sub => s[sub] || '')])
+    };
+  }
+  if (key === 'absent') {
+    return {
+      title: 'Absent Students',
+      headers: ['#', 'Name', 'Reg No', 'Stream', 'Batch', 'Papers Given'],
+      rows: r.absentStudents.map((s, i) => [i + 1, s.name, s.regno, s.stream, s.batch, s.papers])
+    };
+  }
+  return null;
+}
+
+function showDownloadMenu(btn, key) {
+  const data = tableExportData(key);
+  if (!data) return;
+  pendingExport = data;
+  const old = document.getElementById('downloadMenu');
+  if (old) old.remove();
+  const menu = document.createElement('div');
+  menu.id = 'downloadMenu';
+  menu.className = 'download-menu';
+  menu.innerHTML =
+    '<div class="download-menu-title">Download as</div>' +
+    '<button type="button" onclick="doDownload(\'csv\')">CSV</button>' +
+    '<button type="button" onclick="doDownload(\'xls\')">Excel (XLS)</button>' +
+    '<button type="button" onclick="doDownload(\'pdf\')">PDF</button>';
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.top = (r.bottom + 6) + 'px';
+  menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 170)) + 'px';
+  setTimeout(() => document.addEventListener('click', closeDownloadMenu, { once: true }), 0);
+}
+
+function closeDownloadMenu() {
+  const m = document.getElementById('downloadMenu');
+  if (m) m.remove();
+}
+
+function doDownload(fmt) {
+  const d = pendingExport;
+  closeDownloadMenu();
+  pendingExport = null;
+  if (!d) return;
+  const filename = d.title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_');
+  if (fmt === 'csv') downloadCSV(filename, d.headers, d.rows);
+  else if (fmt === 'xls') downloadXLS(filename, d.headers, d.rows);
+  else downloadPDF(filename, d.title, d.headers, d.rows);
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadCSV(filename, headers, rows) {
+  const csv = [headers, ...rows].map(r => r.map(c => {
+    const s = String(c == null ? '' : c);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\n');
+  triggerDownload(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }), filename + '.csv');
+}
+
+function downloadXLS(filename, headers, rows) {
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+    '<head><meta charset="utf-8"></head><body><table border="1">' +
+    '<tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
+    rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') +
+    '</table></body></html>';
+  triggerDownload(new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' }), filename + '.xls');
+}
+
+function downloadPDF(filename, title, headers, rows) {
+  const win = window.open('', '_blank');
+  if (!win) { alert('Popup blocked — allow popups to download PDF.'); return; }
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
+    '<style>body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111}h2{color:#E21B38;margin:0 0 16px;font-size:20px}' +
+    'table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}' +
+    'th{background:#f0f0f0;font-weight:700}</style></head><body>' +
+    '<h2>' + esc(title) + '</h2>' +
+    '<table><thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' +
+    rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') +
+    '</tbody></table></body></html>'
+  );
+  win.document.close();
+  win.focus();
+  win.print();
 }

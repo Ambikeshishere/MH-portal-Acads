@@ -869,6 +869,7 @@ function handleLogout() {
 
 // ── AUTO-LOGIN ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   const saved = localStorage.getItem('pw_user');
   if (saved) {
     try {
