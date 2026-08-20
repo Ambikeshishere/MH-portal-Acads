@@ -81,22 +81,22 @@ async function viewStudentDetail(regno) {
     if (resp.success) {
       renderStudentDetail(resp.data);
     } else {
-      document.getElementById('studentDetailTitle').textContent = 'Student: ' + regno;
-      document.getElementById('studentDetailStats').innerHTML = '<div class="empty-msg"><p>Deploy updated backend for student details</p></div>';
+      document.getElementById('stuDetailTitle').textContent = 'Student: ' + regno;
+      document.getElementById('stuDetailStats').innerHTML = '<div class="empty-msg"><p>Deploy updated backend for student details</p></div>';
     }
   } catch (e) {
     console.error(e);
-    document.getElementById('studentDetailTitle').textContent = 'Student: ' + regno;
-    document.getElementById('studentDetailStats').innerHTML = '<div class="empty-msg"><p>Deploy updated backend for student details</p></div>';
+    document.getElementById('stuDetailTitle').textContent = 'Student: ' + regno;
+    document.getElementById('stuDetailStats').innerHTML = '<div class="empty-msg"><p>Deploy updated backend for student details</p></div>';
   }
   hideLoading();
 }
 
 function renderStudentDetail(d) {
   const s = d.student;
-  document.getElementById('studentDetailTitle').textContent = (s.name || s.regno) + ' — ' + s.batch;
+  document.getElementById('stuDetailTitle').textContent = (s.name || s.regno) + ' — ' + s.batch;
 
-  document.getElementById('studentDetailStats').innerHTML = `
+  document.getElementById('stuDetailStats').innerHTML = `
     <div class="detail-stat"><div class="ds-value">${s.regno}</div><div class="ds-label">Registration No</div></div>
     <div class="detail-stat"><div class="ds-value">${s.batch}</div><div class="ds-label">Batch</div></div>
     <div class="detail-stat"><div class="ds-value">${s.testsTaken}</div><div class="ds-label">Tests Taken</div></div>
@@ -116,7 +116,7 @@ function renderStudentDetail(d) {
     `;
   }).join('');
 
-  const tbody = document.getElementById('studentTestBody');
+  const tbody = document.getElementById('stuDetailTestBody');
   const tests = d.tests || [];
   tbody.innerHTML = tests.length === 0
     ? '<tr><td colspan="10"><div class="empty-msg"><p>No test history</p></div></td></tr>'

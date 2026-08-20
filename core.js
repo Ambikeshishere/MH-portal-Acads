@@ -184,7 +184,7 @@ function scoreLabel(score) {
   return 'Needs Work';
 }
 
-function esc(s) { return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 
 function togglePass(id, btn) {
   const inp = document.getElementById(id);
