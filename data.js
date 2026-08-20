@@ -89,10 +89,14 @@ function loadData(force) {
 }
 
 // ── PARSING HELPERS ──────────────────────────────────
-// markspercent arrives as "48.00%" (string with %). Return number.
+// markspercent may arrive as "48.00%" (string with %) OR as a decimal
+// fraction like 0.5 meaning 50%. Detect and convert accordingly.
 function parsePct(s) {
   const n = parseFloat(String(s).replace('%', '').trim());
-  return isNaN(n) ? 0 : n;
+  if (isNaN(n)) return 0;
+  // Decimal fraction (e.g. 0.5 = 50%) — convert to percentage
+  if (n > 0 && n < 1) return +(n * 100).toFixed(1);
+  return n;
 }
 function parseNum(s) {
   const n = parseFloat(String(s).trim());
@@ -226,7 +230,7 @@ function computeHome(filters) {
     const reg = r.regno, b = r.batch;
     if (!reg) return;
     studentBatch[reg] = b;
-    if (b && centerSet.has(batchCenter[b])) {
+    if (b && b !== 'No Batch' && centerSet.has(batchCenter[b])) {
       if (roleBatches && !roleBatches.has(b)) return; // faculty: own batches only
       centerBatches.add(b);
       const fb = filters.faculty ? facultyBatchMap[String(filters.faculty).toLowerCase()] : null;
