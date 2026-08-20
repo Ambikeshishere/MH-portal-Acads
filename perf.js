@@ -32,3 +32,4 @@ function renderAbsentList(containerId, students) {
     </div>
   `).join('');
 }
+
